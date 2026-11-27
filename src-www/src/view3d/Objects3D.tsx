@@ -7,7 +7,7 @@ import type { AssetMeta, Behavior, SceneObject } from '../model/types';
 import { cloneInstance, loadAsset, onAssetsChanged } from '../assets/assetStore';
 import { setStateValue, useConnection } from '../iobroker/connect';
 import { formatValue, isTruthy, normalizeValue, type StateValue } from '../iobroker/backend';
-import { actionValue, lightLevel } from '../model/behaviors';
+import { actionValue, lightColor, lightLevel } from '../model/behaviors';
 
 /** Loads an asset prototype; re-loads when the asset store changes. */
 export function useAssetPrototype(id: string | null | undefined): THREE.Object3D | null {
@@ -77,6 +77,12 @@ export function ObjectInstance({ obj, asset, selected, ghost, interactive, onCli
     // ---------- behaviours ----------
     const behaviors = ghost ? [] : (obj.behaviors ?? []);
     const values = useConnection(useShallow(s => behaviors.map(b => (b.stateId ? s.values[b.stateId]?.val : undefined))));
+    // extra datapoints of lights: on/off and colour
+    const lightExtras = useConnection(
+        useShallow(s =>
+            behaviors.flatMap(b => (b.type === 'light' ? [b.onId, ...(b.colorIds ?? [])] : [])).map(id => (id ? s.values[id]?.val : undefined)),
+        ),
+    );
     const emitters = useMemo(() => (instance ? findEmitters(instance) : []), [instance]);
     const lightPos = useMemo(() => {
         if (!instance || !emitters.length) return new THREE.Vector3(0, h * 0.6, 0);
@@ -96,6 +102,7 @@ export function ObjectInstance({ obj, asset, selected, ghost, interactive, onCli
     let action: Extract<Behavior, { type: 'action' }> | null = null;
     let actionValueNow: StateValue | undefined;
     const axis = { x: 0, y: 1, z: 2 } as const;
+    let extra = 0;
     for (let i = 0; i < behaviors.length; i++) {
         const b = behaviors[i];
         const v = values[i];
@@ -111,9 +118,15 @@ export function ObjectInstance({ obj, asset, selected, ghost, interactive, onCli
                 break;
             }
             case 'light': {
-                const level = lightLevel(v, b.max);
-                lights.push({ color: b.color, intensity: b.intensity * level, range: b.range });
-                if (level > 0) glow = { color: b.color, level };
+                const onVal = lightExtras[extra];
+                const colorVals = lightExtras.slice(extra + 1, extra + 1 + (b.colorIds?.length ?? 0));
+                extra += 1 + (b.colorIds?.length ?? 0);
+                let level = lightLevel(v, b.max);
+                // a separate on/off datapoint switches the light off whatever the level says
+                if (b.onId && onVal !== undefined) level = isTruthy(onVal) ? (b.onId === b.stateId ? 1 : level || 1) : 0;
+                const color = lightColor(b.colorMode, colorVals, b.colorMax) ?? b.color;
+                lights.push({ color, intensity: b.intensity * level, range: b.range });
+                if (level > 0) glow = { color, level };
                 break;
             }
             case 'color':

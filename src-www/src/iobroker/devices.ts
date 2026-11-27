@@ -8,9 +8,22 @@ import { ChannelDetector, Types, type PatternControl } from '@iobroker/type-dete
 import { objectName } from './backend';
 
 /** Device types vis-3d can turn into suggestions. */
-export type DeviceKind = 'light' | 'dimmer' | 'temperature' | 'thermostat' | 'humidity' | 'window' | 'windowTilt' | 'door' | 'blind';
+export type DeviceKind =
+    | LightKind
+    | 'temperature'
+    | 'thermostat'
+    | 'humidity'
+    | 'window'
+    | 'windowTilt'
+    | 'door'
+    | 'blind';
 
-export const SUPPORTED_KINDS: DeviceKind[] = ['light', 'dimmer', 'temperature', 'thermostat', 'humidity', 'window', 'windowTilt', 'door', 'blind'];
+/** Lights: plain switches, dimmers and colour lights (Hue, RGB, colour temperature, CIE). */
+export type LightKind = 'light' | 'dimmer' | 'hue' | 'ct' | 'rgb' | 'rgbSingle' | 'rgbwSingle' | 'cie';
+export const LIGHT_KINDS: LightKind[] = ['rgbSingle', 'rgbwSingle', 'cie', 'hue', 'rgb', 'ct', 'dimmer', 'light'];
+export const isLightKind = (t: string): t is LightKind => (LIGHT_KINDS as string[]).includes(t);
+
+export const SUPPORTED_KINDS: DeviceKind[] = [...LIGHT_KINDS, 'temperature', 'thermostat', 'humidity', 'window', 'windowTilt', 'door', 'blind'];
 
 export interface DetectedDevice {
     /** Channel, device or state id the device was detected at. */
@@ -24,6 +37,8 @@ export interface DetectedDevice {
     states: Record<string, string>;
     /** common.max of the main datapoint (for dimmers and blinds). */
     max?: number;
+    /** common.max per state name (DIMMER, HUE, SATURATION, …). */
+    maxOf: Record<string, number>;
 }
 
 export interface DetectionResult {
@@ -33,6 +48,31 @@ export interface DetectionResult {
 
 export function isSupported(d: DetectedDevice): d is DetectedDevice & { type: DeviceKind } {
     return (SUPPORTED_KINDS as string[]).includes(d.type);
+}
+
+/**
+ * A colour lamp can match several light patterns at once (a Hue lamp is
+ * found as "rgb" and as "hue"). Merge the light controls of one channel into
+ * a single light with all their datapoints, typed by the richest pattern.
+ */
+function mergeLights(found: DetectedDevice[]): DetectedDevice[] {
+    // group by the channel the datapoints live in, so two lamps of one device stay two lamps
+    const channelOf = (d: DetectedDevice) => Object.values(d.states)[0].split('.').slice(0, -1).join('.');
+    const groups = new Map<string, DetectedDevice[]>();
+    for (const d of found.filter(x => isLightKind(x.type))) groups.set(channelOf(d), [...(groups.get(channelOf(d)) ?? []), d]);
+    const result = found.filter(d => !isLightKind(d.type));
+    for (const lights of groups.values()) {
+        const type = LIGHT_KINDS.find(k => lights.some(d => d.type === k))!;
+        const primary = lights.find(d => d.type === type)!;
+        const merged: DetectedDevice = { ...primary, states: {}, maxOf: {} };
+        // the chosen pattern's states first, the others fill gaps
+        for (const d of [primary, ...lights.filter(x => x !== primary)]) {
+            for (const [k, v] of Object.entries(d.states)) merged.states[k] ??= v;
+            for (const [k, v] of Object.entries(d.maxOf)) merged.maxOf[k] ??= v;
+        }
+        result.push(merged);
+    }
+    return result;
 }
 
 /**
@@ -71,22 +111,31 @@ export function detectDevicesInObjects(objects: Record<string, ioBroker.Object>)
             } catch (e) {
                 console.warn(`type-detector: ${member}`, e);
             }
+            const found: DetectedDevice[] = [];
             for (const control of controls ?? []) {
                 const states: Record<string, string> = {};
-                for (const s of control.states) if (s.id) states[s.name] = s.id;
+                const maxOf: Record<string, number> = {};
+                for (const s of control.states) {
+                    if (!s.id) continue;
+                    states[s.name] = s.id;
+                    const max = (objects[s.id] as ioBroker.StateObject | undefined)?.common?.max;
+                    if (typeof max === 'number') maxOf[s.name] = max;
+                }
                 if (!Object.keys(states).length) continue;
                 const main = states.SET ?? states.ACTUAL ?? Object.values(states)[0];
-                const mainObj = objects[main] as ioBroker.StateObject | undefined;
-                devices.push({
+                const mainName = Object.keys(states).find(k => states[k] === main)!;
+                found.push({
                     id: member,
                     name: objectName(objects[member]?.common?.name, member.split('.').pop()!),
                     type: control.type,
                     roomId: room._id,
                     roomName,
                     states,
-                    max: typeof mainObj?.common?.max === 'number' ? mainObj.common.max : undefined,
+                    maxOf,
+                    max: maxOf[mainName],
                 });
             }
+            devices.push(...mergeLights(found));
         }
     }
     return { devices, rooms };

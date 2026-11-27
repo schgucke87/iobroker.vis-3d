@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actionValue, contactLevel, lightLevel, newBehavior, parseConfiguredValue, temperatureColor } from './behaviors';
+import { actionValue, contactLevel, kelvinToHex, lightColor, lightLevel, newBehavior, parseConfiguredValue, temperatureColor } from './behaviors';
 import { normalizeValue } from '../iobroker/backend';
 import type { Behavior } from './types';
 
@@ -61,5 +61,42 @@ describe('heat map', () => {
         const [r2, , b2] = temperatureColor(27).match(/\d+/g)!.map(Number);
         expect(b1).toBeGreaterThan(r1);
         expect(r2).toBeGreaterThan(b2);
+    });
+});
+
+describe('light colours', () => {
+    it('reads RGB strings', () => {
+        expect(lightColor('rgb', ['#FF8800'])).toBe('#ff8800');
+        expect(lightColor('rgb', ['ff8800cc'])).toBe('#ff8800');
+        expect(lightColor('rgb', ['255,0,0'])).toBe('#ff0000');
+        expect(lightColor('rgb', [undefined])).toBeNull();
+    });
+
+    it('converts hue/saturation, with the colour temperature for white mode', () => {
+        expect(lightColor('hue', [0, 100], [360, 100])).toBe('#ff0000');
+        expect(lightColor('hue', [120, 100], [360, 100])).toBe('#00ff00');
+        // raw 0…65535 hue values via max
+        expect(lightColor('hue', [65535 / 3, 254], [65535, 254])).toBe('#00ff00');
+        // unsaturated + colour temperature known: warm white instead of plain white
+        const warm = lightColor('hue', [0, 0, 2700], [360, 100]);
+        expect(warm).not.toBe('#ffffff');
+    });
+
+    it('converts colour temperatures in Kelvin and mired', () => {
+        const k2700 = kelvinToHex(2700);
+        expect(kelvinToHex(370)).toBe(kelvinToHex(1e6 / 370)); // values below 1000 are mired
+        const [r, , b] = [1, 3, 5].map(i => parseInt(k2700.slice(i, i + 2), 16));
+        expect(r).toBeGreaterThan(b); // warm
+        const [r2, , b2] = [1, 3, 5].map(i => parseInt(kelvinToHex(6500).slice(i, i + 2), 16));
+        expect(b2).toBeGreaterThan(200);
+        expect(r2).toBeGreaterThan(200);
+    });
+
+    it('converts CIE xy and separate RGB values', () => {
+        // the red corner of the Hue gamut is red
+        const red = lightColor('cie', ['[0.675,0.322]'])!;
+        expect(parseInt(red.slice(1, 3), 16)).toBe(255);
+        expect(parseInt(red.slice(5, 7), 16)).toBeLessThan(80);
+        expect(lightColor('rgbParts', [255, 128, 0], [255, 255, 255])).toBe('#ff8000');
     });
 });

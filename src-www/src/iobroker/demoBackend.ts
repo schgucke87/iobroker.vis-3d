@@ -71,7 +71,27 @@ const POINTS: DemoPoint[] = [
     P('fenster.kinderzimmer', 'Fenster Kinderzimmer', 'sensor.window', 'boolean', false, 'Kinderzimmer', 'Sicherheit', { write: true }),
     P('fenster.arbeitszimmer', 'Drehgriff Arbeitszimmer', 'value.window', 'number', 2, 'Arbeitszimmer', 'Sicherheit', { write: true, min: 0, max: 2 }),
     P('bewegung.flur', 'Bewegungsmelder Flur', 'sensor.motion', 'boolean', false, 'Flur', 'Sicherheit'),
+    // Hue lamps, structured like the ioBroker Hue adapter creates them
+    ...hueLamp('hue.nachttisch', 'Hue Nachttischlampe', 'Schlafzimmer', { on: true, level: 70, hue: 280, sat: 85, ct: 2700 }),
+    ...hueLamp('hue.arbeitszimmer', 'Hue Ambiance Arbeitszimmer', 'Arbeitszimmer', { on: true, level: 90, ct: 5000 }),
 ];
+
+/** Datapoints of a Hue lamp; with hue/sat it is a colour lamp, otherwise a white ambiance lamp. */
+function hueLamp(base: string, name: string, room: string, v: { on: boolean; level: number; ct: number; hue?: number; sat?: number }): DemoPoint[] {
+    const c = { channel: name };
+    const points = [
+        P(`${base}.on`, `${name} an`, 'switch.light', 'boolean', v.on, room, 'Licht', c),
+        P(`${base}.level`, `${name} Helligkeit`, 'level.dimmer', 'number', v.level, room, 'Licht', { ...c, unit: '%', min: 0, max: 100 }),
+        P(`${base}.ct`, `${name} Farbtemperatur`, 'level.color.temperature', 'number', v.ct, room, 'Licht', { ...c, unit: 'K', min: 2200, max: 6500 }),
+    ];
+    if (v.hue !== undefined) {
+        points.push(
+            P(`${base}.hue`, `${name} Farbton`, 'level.color.hue', 'number', v.hue, room, 'Licht', { ...c, unit: '°', min: 0, max: 360 }),
+            P(`${base}.sat`, `${name} Sättigung`, 'level.color.saturation', 'number', v.sat ?? 100, room, 'Licht', { ...c, unit: '%', min: 0, max: 100 }),
+        );
+    }
+    return points;
+}
 
 export class DemoBackend implements Backend {
     kind = 'demo' as const;

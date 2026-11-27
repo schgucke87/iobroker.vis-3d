@@ -5,7 +5,7 @@
  */
 import type { Behavior, DetectedRoom, Floor, Opening, Project, SceneObject, Vec2 } from './types';
 import type { DetectedDevice, DetectionResult } from '../iobroker/devices';
-import { isSupported } from '../iobroker/devices';
+import { isLightKind, isSupported } from '../iobroker/devices';
 import { detectRooms } from '../geometry/rooms';
 import { computeWallGeometry, pointOnWall, clampOpening } from '../geometry/walls';
 import { pointInPolygon, projectOnSegment } from '../geometry/vec';
@@ -55,6 +55,10 @@ export interface SuggestionResult {
 }
 
 export const NEW_LAMP = 'new';
+
+/** What placing a new lamp for a light means ("Stehlampe" → floor lamp). */
+export const newLampText = (name: string) =>
+    /steh|floor|stand/.test(normalizeName(name)) ? 'Neue Stehlampe platzieren' : 'Neue Deckenleuchte platzieren';
 
 const roomKey = (floorId: string, r: DetectedRoom) => `${floorId}|${r.meta?.id ?? r.centroid.map(v => v.toFixed(2)).join(',')}`;
 
@@ -185,6 +189,7 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
     const result: SuggestionResult = { suggestions: [], unmatched: [], unsupported: [], alreadyBound: 0 };
     // targets handed out as defaults, so two devices don't default to the same window or lamp
     const taken = new Set<string>();
+    const seen = new Set<string>();
 
     const byRoom = new Map<string, DetectedDevice[]>();
     for (const d of detection.devices) byRoom.set(d.roomId, [...(byRoom.get(d.roomId) ?? []), d]);
@@ -204,7 +209,7 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
         const lamps = lampsIn(project, floor, ref.room);
         const lampFor = assignLamps(
             project,
-            supported.filter(d => (d.type === 'light' || d.type === 'dimmer') && !deviceIds(d).some(id => used.has(id))),
+            supported.filter(d => isLightKind(d.type) && !deviceIds(d).some(id => used.has(id))),
             lamps,
         );
 
@@ -213,8 +218,14 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
                 result.alreadyBound++;
                 continue;
             }
+            // the same device can be listed twice, e.g. when a room contains a channel and also one of
+            // its datapoints, or when it is assigned to two rooms
+            const primary = `${isLightKind(d.type) ? 'light' : d.type}:${d.states.ACTUAL ?? d.states.SET ?? Object.values(d.states)[0]}`;
+            if (seen.has(primary)) continue;
+            seen.add(primary);
             const base = { key: `${d.id}|${d.type}`, device: d, room: ref, title: d.name, targets: [] as Target[] };
-            switch (d.type) {
+            // all kinds of lights (switch, dimmer, Hue/colour, colour temperature) are handled alike
+            switch (isLightKind(d.type) ? 'light' : d.type) {
                 case 'temperature':
                 case 'thermostat':
                 case 'humidity': {
@@ -264,11 +275,10 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
                     });
                     break;
                 }
-                case 'light':
-                case 'dimmer': {
+                case 'light': {
                     const targets: Target[] = [
                         ...lamps.map(l => ({ id: l.id, label: `vorhandene ${l.name ?? 'Leuchte'}` })),
-                        { id: NEW_LAMP, label: 'neue Deckenleuchte platzieren' },
+                        { id: NEW_LAMP, label: newLampText(d.name) },
                     ];
                     const def = targets.find(t => t.id === (lampFor.get(d.id) ?? NEW_LAMP))!;
                     result.suggestions.push({
@@ -276,7 +286,7 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
                         kind: 'light',
                         targets,
                         defaultTarget: def.id,
-                        description: def.id === NEW_LAMP ? 'Neue Deckenleuchte platzieren' : `Mit ${def.label.replace('vorhandene ', '')} verbinden`,
+                        description: def.id === NEW_LAMP ? newLampText(d.name) : `Mit ${def.label.replace('vorhandene ', '')} verbinden`,
                     });
                     break;
                 }
@@ -291,19 +301,49 @@ export interface Choice {
     target?: string;
 }
 
-/** Light behaviours for a detected light or dimmer: lamp follows the level/switch, tapping toggles. */
+/**
+ * Light behaviours for a detected light: the lamp follows brightness, on/off
+ * and (for Hue and other colour lights) the colour; tapping toggles it.
+ */
 export function lightBehaviors(d: DetectedDevice): Behavior[] {
-    if (d.type === 'dimmer') {
-        const max = d.max ?? 100;
-        const light = { ...(newBehavior('light', d.states.SET) as Extract<Behavior, { type: 'light' }>), max };
-        const onId = d.states.ON_SET ?? d.states.ON;
-        const action = onId
-            ? newBehavior('action', onId)
-            : { ...(newBehavior('action', d.states.SET) as Extract<Behavior, { type: 'action' }>), value: String(max) };
-        return [light, action];
+    const st = d.states;
+    const mx = d.maxOf ?? {};
+    // brightness: the dimmer level (SET for "dimmer", DIMMER/BRIGHTNESS for colour lights)
+    const levelName = d.type === 'dimmer' ? 'SET' : st.DIMMER ? 'DIMMER' : st.BRIGHTNESS ? 'BRIGHTNESS' : undefined;
+    const levelId = levelName ? st[levelName] : undefined;
+    const onId = st.ON_SET ?? st.ON ?? (d.type === 'light' ? st.SET : undefined);
+    const stateId = levelId ?? onId ?? Object.values(st)[0];
+    const max = levelName ? (mx[levelName] ?? 100) : 100;
+
+    const light = { ...(newBehavior('light', stateId) as Extract<Behavior, { type: 'light' }>), max };
+    if (onId && onId !== stateId) light.onId = onId;
+    const color = colorBinding(d);
+    if (color) Object.assign(light, color);
+
+    const action = onId
+        ? newBehavior('action', onId)
+        : { ...(newBehavior('action', stateId) as Extract<Behavior, { type: 'action' }>), value: String(max) };
+    return [light, action];
+}
+
+/** Where a colour light's colour comes from, by the richest datapoints it has. */
+function colorBinding(d: DetectedDevice): Pick<Extract<Behavior, { type: 'light' }>, 'colorMode' | 'colorIds' | 'colorMax'> | null {
+    const st = d.states;
+    const mx = d.maxOf ?? {};
+    const ids = (names: string[]) => names.map(n => st[n]).filter(Boolean);
+    const maxes = (names: string[]) => names.filter(n => st[n]).map(n => mx[n] ?? 0);
+    if (st.RGB) return { colorMode: 'rgb', colorIds: [st.RGB] };
+    if (st.RGBW) return { colorMode: 'rgb', colorIds: [st.RGBW] };
+    if (st.CIE) return { colorMode: 'cie', colorIds: [st.CIE] };
+    if (st.HUE) {
+        // hue, saturation and (for the white mode) colour temperature, in this order
+        const names = ['HUE', 'SATURATION', 'TEMPERATURE'];
+        const list = st.SATURATION ? names : ['HUE'];
+        return { colorMode: 'hue', colorIds: ids(list), colorMax: maxes(list) };
     }
-    const id = d.states.SET ?? d.states.ON_SET ?? d.states.ON ?? Object.values(d.states)[0];
-    return [newBehavior('light', id), newBehavior('action', id)];
+    if (st.RED && st.GREEN && st.BLUE) return { colorMode: 'rgbParts', colorIds: ids(['RED', 'GREEN', 'BLUE']), colorMax: maxes(['RED', 'GREEN', 'BLUE']) };
+    if (st.TEMPERATURE) return { colorMode: 'ct', colorIds: [st.TEMPERATURE] };
+    return null;
 }
 
 /**
@@ -380,7 +420,9 @@ export function applySuggestions(project: Project, choices: Choice[], assignment
                     obj.behaviors = [...(obj.behaviors ?? []), ...behaviors];
                     break;
                 }
-                const lamp = builtinAssets().find(a => a.id === 'builtin:ceilingLamp')!;
+                // a floor lamp for "Stehlampe" & co., a ceiling lamp otherwise
+                const standing = /steh|floor|stand/.test(normalizeName(d.name));
+                const lamp = builtinAssets().find(a => a.id === (standing ? 'builtin:floorLamp' : 'builtin:ceilingLamp'))!;
                 const n = lampCount.get(ref.key) ?? 1;
                 const i = newLamps.get(ref.key) ?? 0;
                 newLamps.set(ref.key, i + 1);
@@ -394,7 +436,7 @@ export function applySuggestions(project: Project, choices: Choice[], assignment
                     name: d.name,
                     x: pointInPolygon([x, cy], ref.room.polygon) ? x : cx,
                     y: cy,
-                    elevation: floor.height - lamp.size[1],
+                    elevation: standing ? 0 : floor.height - lamp.size[1],
                     rotation: 0,
                     scale: [1, 1, 1],
                     behaviors,

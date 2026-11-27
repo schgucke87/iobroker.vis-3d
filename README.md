@@ -60,7 +60,8 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - Verbindung über den web-Adapter (Websocket), Live-Werte per Abo nur für die verwendeten Datenpunkte
 - Datenpunkt-Browser mit Suche (Name, ID, Rolle), Filter nach Raum (`enum.rooms`) und Rolle, Live-Werten
 - **Verhalten** an jedem Objekt, auch an importierten Modellen:
-  - *Leuchten*: echte Lichtquelle + leuchtende Teile, Schalter oder Dimmer
+  - *Leuchten*: echte Lichtquelle + leuchtende Teile, Schalter oder Dimmer, optional mit Ein/Aus-Datenpunkt und
+    **Lichtfarbe aus Datenpunkten** (RGB, Farbton/Sättigung, Farbtemperatur in Kelvin oder Mired, CIE xy, R/G/B einzeln) – z. B. für Philips Hue
   - *Färben*: Farbe zwischen zwei Werten (z. B. Heizkörper nach Temperatur)
   - *Sichtbarkeit*, *Bewegen/Drehen* (z. B. Garagentor), *Wert anzeigen*
   - *Klick-Aktion*: in der Ansicht antippen → umschalten, Wert setzen oder erhöhen
@@ -70,7 +71,9 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - **✨ Vorschläge**: erkennt mit dem ioBroker type-detector die Geräte in den ioBroker-Räumen (`enum.rooms`) und schlägt vor,
   was damit im 3D-Haus passieren soll – Fensterkontakte, Türkontakte und Rollläden an passende Fenster/Türen binden,
   Temperatur/Luftfeuchte am Raum anzeigen, Lichter mit vorhandenen Lampen verbinden (Zuordnung über den Namen,
-  z. B. „Stehlampe“ ↔ Stehlampe, „Deckenlicht“ ↔ Deckenleuchte) oder neue Deckenleuchten platzieren.
+  z. B. „Stehlampe“ ↔ Stehlampe, „Deckenlicht“ ↔ Deckenleuchte) oder neue Leuchten platzieren.
+  Auch **Hue- und andere Farb-Lichter** (Hue-Adapter, RGB, Farbtemperatur, CIE): Helligkeit, Ein/Aus und Farbe werden
+  automatisch verknüpft, die 3D-Lampe leuchtet in der echten Farbe.
   Räume werden über die verknüpfte Raum-ID oder den Namen zugeordnet, übrige können im Dialog zugewiesen werden.
   Alles mit einem Schritt rückgängig zu machen.
 - Projekt und Modelle im ioBroker-Dateisystem (`vis-3d.0/main/`)
@@ -137,7 +140,8 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [ ] Anmeldung/Rechte, wenn der web-Adapter Authentifizierung verlangt (ungetestet)
 - [ ] Ansicht lädt Projektänderungen aus dem Editor automatisch nach
 - [x] Automatische Vorschläge über `enum.rooms` + type-detector
-- [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien, Farb-Lichter)
+- [x] Hue- und Farb-Lichter in den Vorschlägen
+- [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht
 
 ## Lizenz

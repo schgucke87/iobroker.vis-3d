@@ -1,5 +1,6 @@
 import type { Behavior, BehaviorType } from '../model/types';
-import { BEHAVIOR_HINTS, BEHAVIOR_LABELS, newBehavior } from '../model/behaviors';
+import { BEHAVIOR_HINTS, BEHAVIOR_LABELS, COLOR_ID_LABELS, COLOR_MODE_LABELS, newBehavior } from '../model/behaviors';
+import type { LightColorMode } from '../model/types';
 import { StateIdField, TestToggle } from './Datapoints';
 
 type Patch = Partial<Behavior>;
@@ -85,7 +86,39 @@ function BehaviorFields({ b, update }: { b: Behavior; update: (p: Patch) => void
                     <Num label="Helligkeit" value={b.intensity} step={0.5} onChange={intensity => update({ intensity })} />
                     <Num label="Reichweite (m)" value={b.range} step={0.5} onChange={range => update({ range })} />
                     <Num label="Dimmer: Wert für 100 %" value={b.max} onChange={max => update({ max })} />
-                    <TestToggle id={b.stateId} />
+                    <StateIdField label="Ein/Aus (optional)" value={b.onId} roleHint="switch" onChange={onId => update({ onId: onId || undefined })} />
+                    <label className="field compact">
+                        <span>Farbe aus Datenpunkt</span>
+                        <select
+                            value={b.colorMode ?? ''}
+                            onChange={e => {
+                                const colorMode = (e.target.value || undefined) as LightColorMode | undefined;
+                                update({ colorMode, colorIds: colorMode ? (b.colorIds ?? []).slice(0, COLOR_ID_LABELS[colorMode].length) : undefined, colorMax: undefined });
+                            }}
+                        >
+                            <option value="">– feste Farbe –</option>
+                            {(Object.keys(COLOR_MODE_LABELS) as LightColorMode[]).map(m => (
+                                <option key={m} value={m}>
+                                    {COLOR_MODE_LABELS[m]}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    {b.colorMode &&
+                        COLOR_ID_LABELS[b.colorMode].map((label, i) => (
+                            <StateIdField
+                                key={`${b.colorMode}-${i}`}
+                                label={label}
+                                value={b.colorIds?.[i]}
+                                roleHint="level.color"
+                                onChange={id => {
+                                    const colorIds = [...(b.colorIds ?? [])];
+                                    colorIds[i] = id;
+                                    update({ colorIds });
+                                }}
+                            />
+                        ))}
+                    <TestToggle id={b.onId ?? b.stateId} />
                 </>
             );
         case 'color':

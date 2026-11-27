@@ -278,10 +278,11 @@ export function Scene3D({ editable }: { editable: boolean }) {
 function DebugHandle() {
     const camera = useThree(s => s.camera);
     const gl = useThree(s => s.gl);
+    const scene = useThree(s => s.scene);
     useEffect(() => {
         if (!new URLSearchParams(location.search).has('debug')) return;
         const w = window as unknown as { __vis3d?: Record<string, unknown> };
-        w.__vis3d = { ...w.__vis3d, camera, canvas: gl.domElement };
-    }, [camera, gl]);
+        w.__vis3d = { ...w.__vis3d, camera, scene, canvas: gl.domElement };
+    }, [camera, gl, scene]);
     return null;
 }

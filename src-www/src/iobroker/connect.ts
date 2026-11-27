@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Backend, StateInfo, StateValue } from './backend';
 import { DemoBackend } from './demoBackend';
 import type { Project } from '../model/types';
+import { behaviorStateIds } from '../model/behaviors';
 
 /**
  * Chooses the data source at startup:
@@ -122,7 +123,7 @@ export function syncSubscriptions(ids: Iterable<string>) {
 export function projectStateIds(p: Project): Set<string> {
     const ids = new Set<string>();
     for (const f of p.floors) {
-        for (const o of Object.values(f.objects)) for (const b of o.behaviors ?? []) if (b.stateId) ids.add(b.stateId);
+        for (const o of Object.values(f.objects)) for (const b of o.behaviors ?? []) behaviorStateIds(b).forEach(id => ids.add(id));
         for (const w of Object.values(f.walls)) {
             for (const o of w.openings) {
                 if (o.stateId) ids.add(o.stateId);

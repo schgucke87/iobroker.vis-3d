@@ -116,6 +116,17 @@ export type Behavior =
           range: number;
           /** Value meaning "fully on" for dimmers (100 for 0…100 %). Booleans are on/off. */
           max: number;
+          /** Optional on/off datapoint: when it is off, the light is off whatever the level says. */
+          onId?: string;
+          /** Light colour from datapoints (e.g. Hue): how to read `colorIds`. */
+          colorMode?: LightColorMode;
+          /**
+           * rgb/cie: [colour]; hue: [hue, saturation?, colour temperature?];
+           * ct: [colour temperature]; rgbParts: [red, green, blue]
+           */
+          colorIds?: string[];
+          /** Maximum values of the colour datapoints (e.g. 360 for hue, 254 for saturation). */
+          colorMax?: number[];
       }
     | { id: string; type: 'color'; stateId: string; min: number; max: number; colorMin: string; colorMax: string }
     | { id: string; type: 'visibility'; stateId: string; invert: boolean }
@@ -135,6 +146,8 @@ export type Behavior =
     | { id: string; type: 'action'; stateId: string; mode: 'toggle' | 'set' | 'increment'; value: string };
 
 export type BehaviorType = Behavior['type'];
+
+export type LightColorMode = 'rgb' | 'hue' | 'ct' | 'cie' | 'rgbParts';
 
 /** A placed instance of an asset on a floor. */
 export interface SceneObject {

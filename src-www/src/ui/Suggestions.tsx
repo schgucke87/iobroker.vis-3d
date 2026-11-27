@@ -15,10 +15,6 @@ const UNSUPPORTED_LABELS: Record<string, string> = {
     gate: 'Tore',
     button: 'Taster',
     vacuumCleaner: 'Saugroboter',
-    rgbSingle: 'RGB-Lichter',
-    rgb: 'RGB-Lichter',
-    ct: 'Farbtemperatur-Lichter',
-    hue: 'Farb-Lichter',
     airCondition: 'Klimageräte',
 };
 
@@ -181,7 +177,7 @@ function mainId(s: Suggestion) {
 }
 
 function targetLabel(s: Suggestion, id: string, label: string) {
-    if (s.kind === 'light') return id === NEW_LAMP ? 'Neue Deckenleuchte platzieren' : `Mit ${label.replace('vorhandene ', '')} verbinden`;
+    if (s.kind === 'light') return id === NEW_LAMP ? label : `Mit ${label.replace('vorhandene ', '')} verbinden`;
     if (s.kind === 'blind') return `Rollladen an ${label}`;
     return `Kontakt an ${label}`;
 }

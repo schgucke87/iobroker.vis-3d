@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { demoProject } from './demo';
 import { DemoBackend } from '../iobroker/demoBackend';
-import { applySuggestions, buildSuggestions, NEW_LAMP, projectRooms } from './suggestions';
+import { applySuggestions, buildSuggestions, lightBehaviors, NEW_LAMP, projectRooms } from './suggestions';
+import type { Behavior } from './types';
 import { projectStateIds } from '../iobroker/connect';
 
 describe('suggestions from detected devices', async () => {
@@ -89,5 +90,41 @@ describe('suggestions from detected devices', async () => {
         const room = projectRooms(applied).find(x => x.name === 'Badezimmer')!;
         expect(room.room.meta?.enumId).toBe('enum.rooms.bad');
         expect(room.room.meta?.humidityId).toBe('demo.0.luftfeuchte.bad');
+    });
+});
+
+describe('Hue lamps in suggestions', async () => {
+    const detection = await new DemoBackend().detectDevices();
+
+    it('suggests Hue lamps as lights with on/off, brightness and colour', () => {
+        const project = demoProject({ bindings: false });
+        const r = buildSuggestions(project, detection);
+        const hue = r.suggestions.find(s => s.device.name === 'Hue Nachttischlampe')!;
+        expect(hue.kind).toBe('light');
+        expect(hue.device.type).toBe('hue');
+        const [light, action] = lightBehaviors(hue.device) as [Extract<Behavior, { type: 'light' }>, Extract<Behavior, { type: 'action' }>];
+        expect(light.stateId).toBe('demo.0.hue.nachttisch.level');
+        expect(light.onId).toBe('demo.0.hue.nachttisch.on');
+        expect(light.max).toBe(100);
+        expect(light.colorMode).toBe('hue');
+        expect(light.colorIds).toEqual(['demo.0.hue.nachttisch.hue', 'demo.0.hue.nachttisch.sat', 'demo.0.hue.nachttisch.ct']);
+        expect(light.colorMax).toEqual([360, 100, 6500]);
+        // tapping switches the lamp on/off, not the level
+        expect(action.stateId).toBe('demo.0.hue.nachttisch.on');
+
+        const ambiance = r.suggestions.find(s => s.device.name === 'Hue Ambiance Arbeitszimmer')!;
+        const [l2] = lightBehaviors(ambiance.device) as [Extract<Behavior, { type: 'light' }>];
+        expect(l2.colorMode).toBe('ct');
+        expect(r.unsupported.some(d => d.type === 'hue' || d.type === 'ct')).toBe(false);
+    });
+});
+
+describe('duplicates', async () => {
+    const detection = await new DemoBackend().detectDevices();
+    it('suggests a device only once even if ioBroker lists it twice', () => {
+        const d = detection.devices.find(x => x.states.ACTUAL === 'demo.0.temperatur.wohnzimmer')!;
+        const doubled = { ...detection, devices: [...detection.devices, { ...d, id: 'demo.0.some_channel', name: 'Kanal' }] };
+        const r = buildSuggestions(demoProject({ bindings: false }), doubled);
+        expect(r.suggestions.filter(s => s.device.states.ACTUAL === 'demo.0.temperatur.wohnzimmer').length).toBe(1);
     });
 });

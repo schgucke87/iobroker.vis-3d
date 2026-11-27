@@ -57,3 +57,42 @@ describe('device detection (type-detector)', () => {
         expect(byId['hm.0.licht'].roomName).toBe('Wohnzimmer');
     });
 });
+
+describe('Hue lamps (structure of the ioBroker Hue adapter)', () => {
+    const hue = (base: string, name: string, color: boolean): O =>
+        ({
+            ...ch(base, name, color ? 'light.color' : 'light.color.temperature'),
+            ...st(`${base}.on`, 'An', 'switch.light', 'boolean'),
+            ...st(`${base}.bri`, 'bri', 'level.brightness', 'number', { min: 0, max: 254 }),
+            ...st(`${base}.level`, 'Helligkeit', 'level.dimmer', 'number', { min: 0, max: 100 }),
+            ...st(`${base}.ct`, 'Farbtemperatur', 'level.color.temperature', 'number', { min: 2200, max: 6500 }),
+            ...(color
+                ? {
+                      ...st(`${base}.hue`, 'Farbton', 'level.color.hue', 'number', { min: 0, max: 360 }),
+                      ...st(`${base}.sat`, 'Sättigung', 'level.color.saturation', 'number', { min: 0, max: 100 }),
+                      ...st(`${base}.xy`, 'xy', 'level.color.xy', 'string'),
+                      ...st(`${base}.r`, 'r', 'level.color.red', 'number', { min: 0, max: 255 }),
+                      ...st(`${base}.g`, 'g', 'level.color.green', 'number', { min: 0, max: 255 }),
+                      ...st(`${base}.b`, 'b', 'level.color.blue', 'number', { min: 0, max: 255 }),
+                  }
+                : {}),
+        }) as unknown as O;
+
+    it('detects one light per lamp, with on/off, brightness and colour', () => {
+        const objects = {
+            ...hue('hue.0.Wohnzimmer_Spot', 'Wohnzimmer Spot', true),
+            ...hue('hue.0.Flur_Ambiance', 'Flur Ambiance', false),
+            ...en('enum.rooms.wz', 'Wohnzimmer', ['hue.0.Wohnzimmer_Spot', 'hue.0.Flur_Ambiance']),
+        } as unknown as O;
+        const { devices } = detectDevicesInObjects(objects);
+        // the colour lamp matches "rgb" and "hue" in the type-detector: it must still be one light
+        expect(devices.map(d => d.id).sort()).toEqual(['hue.0.Flur_Ambiance', 'hue.0.Wohnzimmer_Spot']);
+        const spot = devices.find(d => d.id === 'hue.0.Wohnzimmer_Spot')!;
+        expect(spot.type).toBe('hue');
+        expect(spot.states.ON).toBe('hue.0.Wohnzimmer_Spot.on');
+        expect(spot.states.DIMMER).toBe('hue.0.Wohnzimmer_Spot.level');
+        expect(spot.states.SATURATION).toBe('hue.0.Wohnzimmer_Spot.sat');
+        expect(spot.maxOf.HUE).toBe(360);
+        expect(devices.find(d => d.id === 'hue.0.Flur_Ambiance')!.type).toBe('ct');
+    });
+});
