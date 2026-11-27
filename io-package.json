@@ -1,0 +1,43 @@
+{
+  "common": {
+    "name": "vis-3d",
+    "version": "0.0.1",
+    "news": {
+      "0.0.1": {
+        "en": "Initial version: wall editor, room detection, 3D building view",
+        "de": "Erste Version: Wand-Editor, Raumerkennung, 3D-Gebäudeansicht"
+      }
+    },
+    "titleLang": {
+      "en": "3D visualization",
+      "de": "3D-Visualisierung"
+    },
+    "desc": {
+      "en": "3D visualization with wall editor, model import and state-driven objects",
+      "de": "3D-Visualisierung mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten"
+    },
+    "authors": ["schgucke87"],
+    "keywords": ["visualization", "3d", "floorplan", "vis"],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "icon": "vis-3d.svg",
+    "type": "visualization",
+    "onlyWWW": true,
+    "noConfig": true,
+    "singleton": true,
+    "enabled": true,
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "readme": "https://github.com/schgucke87/iobroker.vis-3d/blob/main/README.md",
+    "localLinks": {
+      "_default": "%web_protocol%://%ip%:%web_port%/vis-3d/index.html",
+      "Editor": "%web_protocol%://%ip%:%web_port%/vis-3d/index.html?edit=1"
+    },
+    "dependencies": [{ "js-controller": ">=5.0.0" }],
+    "globalDependencies": [{ "web": ">=6.0.0" }]
+  },
+  "native": {},
+  "objects": [],
+  "instanceObjects": []
+}

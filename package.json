@@ -1,0 +1,49 @@
+{
+  "name": "iobroker.vis-3d",
+  "version": "0.0.1",
+  "description": "3D-Visualisierung für ioBroker mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten",
+  "author": "schgucke87",
+  "license": "MIT",
+  "keywords": [
+    "ioBroker",
+    "visualization",
+    "3d",
+    "vis",
+    "three.js",
+    "floorplan"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schgucke87/iobroker.vis-3d"
+  },
+  "type": "module",
+  "files": [
+    "www/",
+    "admin/",
+    "io-package.json",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.187.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.4.0",
+    "vitest": "^5.1.2",
+    "zundo": "^2.3.0",
+    "zustand": "^5.1.0"
+  }
+}
