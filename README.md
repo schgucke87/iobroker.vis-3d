@@ -6,18 +6,25 @@
 
 ## Installation in ioBroker
 
-Voraussetzung: der **web**-Adapter ist installiert (vis-3d wird von ihm unter `/vis-3d/` ausgeliefert).
+Voraussetzungen: der **web**-Adapter ist installiert (vis-3d wird von ihm unter `/vis-3d/` ausgeliefert) und Node.js ist mindestens 20.19 bzw. 22.12 (`node -v`; ggf. `iob nodejs-update`).
 
-Auf dem ioBroker-Rechner (z. B. per SSH):
+**Über den Admin (empfohlen):**
+
+1. Admin → *Adapter* → Symbol mit der Katze („Installieren aus eigener URL“) → Reiter *Benutzerdefiniert*
+2. URL eintragen: `https://github.com/schgucke87/iobroker.vis-3d` → *Installieren*
+3. Warten, bis die Installation fertig ist – dabei wird das Frontend gebaut (auf einem Raspberry Pi einige Minuten)
+4. Bei *vis-3d* in der Adapterliste mit **+** eine Instanz anlegen (sie legt den Speicherort für die Projektdateien an)
+
+Ein **Update** ist derselbe Weg: URL erneut installieren, danach die Seite im Browser neu laden. Das Projekt bleibt erhalten.
+
+**Alternativ per Konsole:**
 
 ```bash
-cd /opt/iobroker
-npm install https://github.com/schgucke87/iobroker.vis-3d
-iobroker add vis-3d
-iobroker upload vis-3d
+iob url https://github.com/schgucke87/iobroker.vis-3d
+iob add vis-3d
 ```
 
-Beim `npm install` wird das Frontend gebaut (dauert auf einem Raspberry Pi ein paar Minuten). Danach:
+Danach:
 
 - Ansicht: `http://<ioBroker-IP>:8082/vis-3d/index.html`
 - Editor: `http://<ioBroker-IP>:8082/vis-3d/index.html?edit=1`
