@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { activeFloor, floorElevations, useEditor } from '../model/store';
+import { activeFloor, findAsset, floorElevations, useEditor } from '../model/store';
+import { MOUNT_LABELS } from './Library';
 import { detectRooms } from '../geometry/rooms';
 import { pointInPolygon } from '../geometry/vec';
 import { computeWallGeometry } from '../geometry/walls';
@@ -134,6 +135,8 @@ export function PropertiesPanel() {
                 </>
             );
         }
+    } else if (selection?.kind === 'object' && floor.objects[selection.id]) {
+        content = <ObjectProps id={selection.id} />;
     } else if (selection?.kind === 'background' && floor.background) {
         content = <BackgroundProps />;
     }
@@ -184,6 +187,60 @@ export function PropertiesPanel() {
                 </>
             )}
         </div>
+    );
+}
+
+function ObjectProps({ id }: { id: string }) {
+    const floor = useEditor(activeFloor);
+    const project = useEditor(s => s.project);
+    const gizmo = useEditor(s => s.gizmo);
+    const s = useEditor.getState;
+    const o = floor.objects[id];
+    const asset = findAsset(project, o.assetId);
+    const up = (patch: Parameters<ReturnType<typeof s>['updateObject']>[1]) => s().updateObject(id, patch);
+    const deg = Math.round((o.rotation * 180) / Math.PI);
+    const dims = asset ? asset.size.map((v, i) => v * o.scale[i]) : [0, 0, 0];
+    const setDim = (axis: number, value: number) => {
+        if (!asset || !(value > 0)) return;
+        const scale = [...o.scale] as [number, number, number];
+        scale[axis] = value / asset.size[axis];
+        up({ scale });
+    };
+    return (
+        <>
+            <h3>Objekt</h3>
+            <label className="field">
+                <span>Name</span>
+                <input value={o.name ?? ''} placeholder={asset?.name} onChange={e => up({ name: e.target.value || undefined })} />
+            </label>
+            <div className="info">
+                {asset ? `${asset.name} · ${MOUNT_LABELS[asset.mount]}` : 'Modell fehlt'}
+            </div>
+            <NumberField label="X" unit="m" value={o.x} onChange={v => up({ x: v })} />
+            <NumberField label="Y" unit="m" value={o.y} onChange={v => up({ y: v })} />
+            <NumberField label="Höhe über Boden" unit="m" value={o.elevation} min={0} onChange={v => up({ elevation: Math.max(0, v) })} />
+            <NumberField label="Drehung" unit="°" step={5} value={deg} onChange={v => up({ rotation: (v * Math.PI) / 180 })} />
+            <div className="row">
+                <button onClick={() => s().rotateSelection(90)} title="R">↺ 90°</button>
+                <button onClick={() => s().rotateSelection(-90)}>↻ 90°</button>
+            </div>
+            <h3>Größe</h3>
+            {(['Breite', 'Höhe', 'Tiefe'] as const).map((label, i) => (
+                <NumberField key={label} label={label} unit="m" value={dims[i]} min={0.01} onChange={v => setDim(i, v)} />
+            ))}
+            <button disabled={o.scale.every(v => v === 1)} onClick={() => up({ scale: [1, 1, 1] })}>
+                Originalgröße
+            </button>
+            <h3>3D-Gizmo</h3>
+            <div className="row">
+                <button className={gizmo === 'translate' ? 'active' : ''} onClick={() => s().setGizmo('translate')}>Verschieben</button>
+                <button className={gizmo === 'rotate' ? 'active' : ''} onClick={() => s().setGizmo('rotate')}>Drehen</button>
+            </div>
+            <div className="row">
+                <button onClick={() => s().duplicateObject(id)} title="Strg+D">Duplizieren</button>
+                <button className="danger" onClick={() => s().deleteSelection()}>Löschen</button>
+            </div>
+        </>
     );
 }
 

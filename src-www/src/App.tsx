@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { redo, undo, useEditor, type Tool, type ViewMode, emptyProject } from './model/store';
 import { PlanEditor } from './editor2d/PlanEditor';
 import { Scene3D } from './view3d/Scene3D';
 import { FloorPanel, PropertiesPanel } from './ui/Panels';
+import { LibraryPanel } from './ui/Library';
 import { exportProject, importProjectFile } from './storage/local';
 import { demoProject } from './model/demo';
 
@@ -42,6 +43,14 @@ function EditorApp() {
                 redo();
             } else if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
                 s().deleteSelection();
+            } else if (mod && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                const sel = s().selection;
+                if (sel?.kind === 'object') s().duplicateObject(sel.id);
+            } else if (!mod && e.key.toLowerCase() === 'r') {
+                s().rotateSelection(e.shiftKey ? -90 : 90);
+            } else if (e.key === 'Escape' && s().tool === 'place') {
+                s().setTool('select');
             } else if (!mod && !e.altKey) {
                 const t = TOOLS.find(t => t.key.toLowerCase() === e.key.toLowerCase());
                 if (t) s().setTool(t.id);
@@ -81,12 +90,12 @@ function EditorApp() {
                     <button onClick={() => confirm('Aktuelles Projekt durch das Beispielhaus ersetzen?') && s().setProject(demoProject())}>Beispiel</button>
                     <button onClick={() => confirm('Neues, leeres Projekt beginnen?') && s().setProject(emptyProject())}>Neu</button>
                     <button onClick={() => importProjectFile().then(p => s().setProject(p)).catch(e => e && alert(String(e.message ?? e)))}>Öffnen</button>
-                    <button onClick={() => exportProject(s().project)}>Exportieren</button>
+                    <button onClick={() => void exportProject(s().project)}>Exportieren</button>
                     <a className="button" href="?" target="_blank" rel="noreferrer">Ansicht ↗</a>
                 </div>
             </header>
             <aside className="left">
-                <FloorPanel />
+                <LeftTabs />
             </aside>
             <main className={`main view-${view}`}>
                 {view !== '3d' && (
@@ -105,6 +114,27 @@ function EditorApp() {
                 <PropertiesPanel />
             </aside>
         </div>
+    );
+}
+
+function LeftTabs() {
+    const [tab, setTab] = useState<'floors' | 'library'>('floors');
+    const tool = useEditor(s => s.tool);
+    useEffect(() => {
+        if (tool === 'place') setTab('library');
+    }, [tool]);
+    return (
+        <>
+            <div className="tabs">
+                <button className={tab === 'floors' ? 'active' : ''} onClick={() => setTab('floors')}>
+                    Stockwerke
+                </button>
+                <button className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')}>
+                    Bibliothek
+                </button>
+            </div>
+            {tab === 'floors' ? <FloorPanel /> : <LibraryPanel />}
+        </>
     );
 }
 

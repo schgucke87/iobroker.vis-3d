@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { Floor, Opening, Project, RoomMeta, Vec2, Wall } from './types';
+import type { AssetMeta, Floor, Opening, Project, RoomMeta, SceneObject, Vec2, Wall } from './types';
 import * as ops from './ops';
 import { detectRooms } from '../geometry/rooms';
 import { pointInPolygon } from '../geometry/vec';
+import { builtinAssets } from '../assets/builtin';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'calibrate' | 'background';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'calibrate' | 'background' | 'place';
 export type ViewMode = 'split' | '2d' | '3d';
 
 export type Selection =
@@ -13,6 +14,7 @@ export type Selection =
     | { kind: 'node'; id: string }
     | { kind: 'opening'; wallId: string; id: string }
     | { kind: 'room'; anchor: Vec2 }
+    | { kind: 'object'; id: string }
     | { kind: 'background' };
 
 export interface Settings {
@@ -31,6 +33,12 @@ export interface EditorState {
     focusFloorId: string | null;
     explode: boolean;
     settings: Settings;
+    /** Asset being placed with the 'place' tool. */
+    placeAssetId: string | null;
+    placeRotation: number;
+    /** Mode of the 3D transform gizmo on the selected object. */
+    gizmo: 'translate' | 'rotate';
+    setGizmo(g: 'translate' | 'rotate'): void;
 
     setProject(p: Project): void;
     setTool(t: Tool): void;
@@ -55,6 +63,14 @@ export interface EditorState {
     updateOpening(wallId: string, id: string, patch: Partial<Opening>): void;
     updateRoom(anchor: Vec2, patch: Partial<Omit<RoomMeta, 'id' | 'anchor'>>): void;
 
+    startPlacing(assetId: string): void;
+    addAsset(meta: AssetMeta): void;
+    removeAsset(id: string): void;
+    addObject(o: Omit<SceneObject, 'id'>): string;
+    updateObject(id: string, patch: Partial<Omit<SceneObject, 'id'>>): void;
+    duplicateObject(id: string): void;
+    rotateSelection(degrees: number): void;
+
     /** Groups many changes (e.g. a drag) into a single undo step. */
     beginGesture(): void;
     endGesture(): void;
@@ -65,11 +81,29 @@ export function activeFloor(s: Pick<EditorState, 'project' | 'activeFloorId'>): 
 }
 
 export function newFloor(name: string): Floor {
-    return { id: ops.uid('f'), name, height: 2.5, slab: 0.2, nodes: {}, walls: {}, rooms: {} };
+    return { id: ops.uid('f'), name, height: 2.5, slab: 0.2, nodes: {}, walls: {}, rooms: {}, objects: {} };
 }
 
 export function emptyProject(): Project {
-    return { version: 1, name: 'Mein Haus', floors: [newFloor('Erdgeschoss')] };
+    return { version: 1, name: 'Mein Haus', floors: [newFloor('Erdgeschoss')], assets: {} };
+}
+
+/** Fills in fields that older project files do not have yet. */
+export function normalizeProject(p: Project): Project {
+    return {
+        ...p,
+        assets: p.assets ?? {},
+        floors: p.floors.map(f => ({ ...f, objects: f.objects ?? {}, rooms: f.rooms ?? {} })),
+    };
+}
+
+/** All assets usable in a project: built-in ones plus the project's imported ones. */
+export function allAssets(p: Project): AssetMeta[] {
+    return [...builtinAssets(), ...Object.values(p.assets)];
+}
+
+export function findAsset(p: Project, id: string): AssetMeta | undefined {
+    return p.assets[id] ?? builtinAssets().find(a => a.id === id);
 }
 
 let gestureSnapshot: Project | null = null;
@@ -89,10 +123,21 @@ export const useEditor = create<EditorState>()(
                 focusFloorId: null,
                 explode: false,
                 settings: { grid: 0.05, snap: true, wallThickness: 0.24 },
+                placeAssetId: null,
+                placeRotation: 0,
+                gizmo: 'translate',
+                setGizmo: gizmo => set({ gizmo }),
 
-                setProject: p =>
-                    set({ project: p, activeFloorId: p.floors[0]?.id ?? '', selection: null, focusFloorId: null }),
-                setTool: tool => set({ tool, selection: tool === 'select' ? get().selection : null }),
+                setProject: p => {
+                    const project = normalizeProject(p);
+                    set({ project, activeFloorId: project.floors[0]?.id ?? '', selection: null, focusFloorId: null });
+                },
+                setTool: tool =>
+                    set({
+                        tool,
+                        selection: tool === 'select' ? get().selection : null,
+                        placeAssetId: tool === 'place' ? get().placeAssetId : null,
+                    }),
                 setView: view => set({ view }),
                 select: selection => set({ selection }),
                 setFocusFloor: focusFloorId => set({ focusFloorId }),
@@ -112,6 +157,7 @@ export const useEditor = create<EditorState>()(
                         f.walls = structuredClone(below.walls);
                         for (const w of Object.values(f.walls)) w.openings = [];
                     }
+                    f.objects = {};
                     set({ project: { ...s.project, floors: [...s.project.floors, f] }, activeFloorId: f.id, focusFloorId: f.id, selection: null });
                 },
                 removeFloor: id => {
@@ -167,6 +213,8 @@ export const useEditor = create<EditorState>()(
                             else if (sel.kind === 'opening') {
                                 const w = f.walls[sel.wallId];
                                 if (w) w.openings = w.openings.filter(o => o.id !== sel.id);
+                            } else if (sel.kind === 'object') {
+                                delete f.objects[sel.id];
                             } else if (sel.kind === 'room') {
                                 for (const m of Object.values(f.rooms)) {
                                     if (pointInRoomOf(f, m.anchor, sel.anchor)) delete f.rooms[m.id];
@@ -197,6 +245,52 @@ export const useEditor = create<EditorState>()(
                         }
                     }),
 
+                startPlacing: assetId =>
+                    set(s => ({ tool: 'place', placeAssetId: assetId, selection: null, focusFloorId: activeFloor(s).id })),
+                addAsset: meta => set(s => ({ project: { ...s.project, assets: { ...s.project.assets, [meta.id]: meta } } })),
+                removeAsset: id =>
+                    set(s => {
+                        const assets = { ...s.project.assets };
+                        delete assets[id];
+                        const floors = s.project.floors.map(f => {
+                            const objects = Object.fromEntries(Object.entries(f.objects).filter(([, o]) => o.assetId !== id));
+                            return Object.keys(objects).length === Object.keys(f.objects).length ? f : { ...f, objects };
+                        });
+                        return {
+                            project: { ...s.project, assets, floors },
+                            placeAssetId: s.placeAssetId === id ? null : s.placeAssetId,
+                            selection: null,
+                        };
+                    }),
+                addObject: o => {
+                    const id = ops.uid('o');
+                    get().editFloor(f => void (f.objects[id] = { ...o, id }));
+                    return id;
+                },
+                updateObject: (id, patch) =>
+                    get().editFloor(f => {
+                        if (f.objects[id]) Object.assign(f.objects[id], patch);
+                    }),
+                duplicateObject: id => {
+                    const o = activeFloor(get()).objects[id];
+                    if (!o) return;
+                    const copy = { ...o, scale: [...o.scale] as SceneObject['scale'], x: o.x + 0.3, y: o.y + 0.3 };
+                    const { id: _old, ...rest } = copy;
+                    void _old;
+                    const newId = get().addObject(rest);
+                    set({ selection: { kind: 'object', id: newId } });
+                },
+                rotateSelection: degrees => {
+                    if (get().tool === 'place') {
+                        set(s => ({ placeRotation: normalizeAngle(s.placeRotation + (degrees * Math.PI) / 180) }));
+                        return;
+                    }
+                    const sel = get().selection;
+                    if (sel?.kind !== 'object') return;
+                    const o = activeFloor(get()).objects[sel.id];
+                    if (o) get().updateObject(sel.id, { rotation: normalizeAngle(o.rotation + (degrees * Math.PI) / 180) });
+                },
+
                 beginGesture: () => {
                     gestureSnapshot = get().project;
                     useEditor.temporal.getState().pause();
@@ -226,6 +320,11 @@ export const useEditor = create<EditorState>()(
 function pointInRoomOf(f: Floor, anchor: Vec2, probe: Vec2): boolean {
     const room = detectRooms(f).find(r => pointInPolygon(probe, r.polygon));
     return !!room && pointInPolygon(anchor, room.polygon);
+}
+
+export function normalizeAngle(a: number): number {
+    const t = Math.PI * 2;
+    return ((((a + Math.PI) % t) + t) % t) - Math.PI;
 }
 
 export const undo = () => useEditor.temporal.getState().undo();

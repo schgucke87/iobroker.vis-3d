@@ -4,11 +4,13 @@ import * as ops from '../model/ops';
 import { detectRooms } from './rooms';
 import { computeWallGeometry, openingRange } from './walls';
 import { demoProject } from '../model/demo';
+import { computePlacement } from './placement';
+import { guessUnit } from '../assets/importer';
 
 const D = { thickness: 0.2, height: 2.5 };
 
 function floor(): Floor {
-    return { id: 'f', name: 'T', height: 2.5, slab: 0.2, nodes: {}, walls: {}, rooms: {} };
+    return { id: 'f', name: 'T', height: 2.5, slab: 0.2, nodes: {}, walls: {}, rooms: {}, objects: {} };
 }
 const P = (point: Vec2) => ({ kind: 'point' as const, point });
 
@@ -126,5 +128,53 @@ describe('editing', () => {
         ops.moveNode(f, n.id, [2, 0], true);
         expect(Object.keys(f.nodes)).toHaveLength(3);
         expect(Object.keys(f.walls)).toHaveLength(2);
+    });
+});
+
+describe('placement', () => {
+    const asset = (mount: 'floor' | 'wall' | 'ceiling', size: [number, number, number]) => ({
+        id: 'a',
+        name: 'A',
+        category: 'furniture' as const,
+        mount,
+        size,
+    });
+
+    it('pushes floor objects against a nearby wall, facing into the room', () => {
+        const f = floor();
+        rect(f, 4, 3); // walls 0.2 thick
+        const pl = computePlacement({ floor: f, asset: asset('floor', [2, 0.8, 0.6]), point: [2, 0.5], rotation: 1, scale: [1, 1, 1], grid: 0.05, snap: true });
+        expect(pl.againstWall).toBe(true);
+        expect(pl.y).toBeCloseTo(0.1 + 0.3 + 0.005);
+        // front faces +y (into the room) => rotation 0
+        expect(Math.abs(pl.rotation)).toBeCloseTo(0);
+    });
+
+    it('leaves objects in the middle of a room where they are', () => {
+        const f = floor();
+        rect(f, 4, 3);
+        const pl = computePlacement({ floor: f, asset: asset('floor', [0.5, 0.5, 0.5]), point: [2.02, 1.49], rotation: 1, scale: [1, 1, 1], grid: 0.05, snap: true });
+        expect(pl.againstWall).toBe(false);
+        expect(pl.x).toBeCloseTo(2.0);
+        expect(pl.y).toBeCloseTo(1.5);
+        expect(pl.rotation).toBe(1);
+    });
+
+    it('hangs ceiling objects from the ceiling and lifts wall objects', () => {
+        const f = floor();
+        rect(f, 4, 3);
+        const c = computePlacement({ floor: f, asset: asset('ceiling', [0.4, 0.3, 0.4]), point: [2, 1.5], rotation: 0, scale: [1, 1, 1], grid: 0.05, snap: true });
+        expect(c.elevation).toBeCloseTo(2.2);
+        const w = computePlacement({ floor: f, asset: asset('wall', [1, 0.6, 0.05]), point: [3.5, 1.5], rotation: 0, scale: [1, 1, 1], grid: 0.05, snap: true });
+        expect(w.againstWall).toBe(true);
+        expect(w.x).toBeCloseTo(4 - 0.1 - 0.025 - 0.005);
+        expect(w.elevation).toBeGreaterThan(0.5);
+    });
+
+    it('guesses units from the model size', () => {
+        expect(guessUnit(1.8)).toBe('m');
+        expect(guessUnit(180)).toBe('cm');
+        expect(guessUnit(1800)).toBe('mm');
+        expect(guessUnit(600, 'stl')).toBe('mm');
     });
 });

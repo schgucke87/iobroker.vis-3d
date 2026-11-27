@@ -66,6 +66,43 @@ export interface BackgroundImage {
     visible: boolean;
 }
 
+/** Where an object is mounted; decides how it snaps when placed. */
+export type Mount = 'floor' | 'wall' | 'ceiling';
+
+export type AssetCategory = 'furniture' | 'lighting' | 'appliance' | 'decor' | 'other';
+
+/**
+ * A reusable 3D model. Built-in assets (id "builtin:…") are generated in
+ * code; imported ones are stored as normalised GLB (metres, Y up, pivot at
+ * the bottom centre of the bounding box, front facing +Z).
+ */
+export interface AssetMeta {
+    id: string;
+    name: string;
+    category: AssetCategory;
+    mount: Mount;
+    /** Bounding box size [width (x), height (y), depth (z)] in metres. */
+    size: [number, number, number];
+    thumbnail?: string;
+    /** Size of the stored GLB in bytes. */
+    bytes?: number;
+}
+
+/** A placed instance of an asset on a floor. */
+export interface SceneObject {
+    id: string;
+    assetId: string;
+    name?: string;
+    /** Plan position of the pivot (x, y) in metres. */
+    x: number;
+    y: number;
+    /** Height of the pivot above the floor surface. */
+    elevation: number;
+    /** Rotation about the vertical axis in radians (counter-clockwise in plan view). */
+    rotation: number;
+    scale: [number, number, number];
+}
+
 export interface Floor {
     id: string;
     name: string;
@@ -76,6 +113,7 @@ export interface Floor {
     nodes: Record<string, WallNode>;
     walls: Record<string, Wall>;
     rooms: Record<string, RoomMeta>;
+    objects: Record<string, SceneObject>;
     background?: BackgroundImage;
 }
 
@@ -84,6 +122,8 @@ export interface Project {
     name: string;
     /** Ordered bottom to top. */
     floors: Floor[];
+    /** Imported assets used by this project (built-in assets are not listed). */
+    assets: Record<string, AssetMeta>;
 }
 
 /** A wall-graph room detected from closed wall loops. */

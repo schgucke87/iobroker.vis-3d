@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DetectedRoom, Floor, Vec2 } from '../model/types';
-import { activeFloor, useEditor } from '../model/store';
+import { activeFloor, findAsset, useEditor } from '../model/store';
+import { computePlacement, objectAxes, objectFootprint } from '../geometry/placement';
 import * as ops from '../model/ops';
 import { computeWallGeometry, clampOpening, openingRange, pointOnWall, type WallFrame } from '../geometry/walls';
 import { detectRooms } from '../geometry/rooms';
@@ -20,8 +21,10 @@ type Drag =
     | { kind: 'node'; id: string }
     | { kind: 'wall'; id: string; start: Vec2; origin: Record<string, Vec2> }
     | { kind: 'opening'; wallId: string; id: string }
-    | { kind: 'background'; start: Vec2; origin: Vec2 };
+    | { kind: 'background'; start: Vec2; origin: Vec2 }
+    | { kind: 'object'; id: string; start: Vec2; origin: Vec2 };
 
+const MOUNT_ORDER = { floor: 0, wall: 1, ceiling: 2 } as const;
 const fmt = (m: number) => `${m.toFixed(2).replace('.', ',')} m`;
 const ptsAttr = (poly: Vec2[]) => poly.map(p => `${p[0]},${p[1]}`).join(' ');
 
@@ -31,6 +34,10 @@ export function PlanEditor() {
     const selection = useEditor(s => s.selection);
     const settings = useEditor(s => s.settings);
     const floors = useEditor(s => s.project.floors);
+    const project = useEditor(s => s.project);
+    const placeAssetId = useEditor(s => s.placeAssetId);
+    const placeRotation = useEditor(s => s.placeRotation);
+    const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
     const api = useEditor.getState;
 
     const svgRef = useRef<SVGSVGElement>(null);
@@ -151,6 +158,37 @@ export function PlanEditor() {
         }
         return best;
     };
+    const objectsDrawn = useMemo(
+        () =>
+            Object.values(floor.objects)
+                .map(o => ({ o, asset: findAsset(project, o.assetId) }))
+                .filter((x): x is { o: typeof x.o; asset: NonNullable<typeof x.asset> } => !!x.asset)
+                // draw floor objects first, then wall- and ceiling-mounted ones above them
+                .sort((a, b) => MOUNT_ORDER[a.asset.mount] - MOUNT_ORDER[b.asset.mount]),
+        [floor.objects, project],
+    );
+    const hitObject = (p: Vec2): string | null => {
+        // topmost first (wall- and ceiling-mounted objects are drawn above floor objects)
+        for (let i = objectsDrawn.length - 1; i >= 0; i--) {
+            const { o, asset } = objectsDrawn[i];
+            if (pointInPolygon(p, objectFootprint(o, asset))) return o.id;
+        }
+        return null;
+    };
+    const placeAsset = tool === 'place' && placeAssetId ? findAsset(project, placeAssetId) : undefined;
+    const placement = (p: Vec2, e: { shiftKey: boolean }) =>
+        placeAsset
+            ? computePlacement({
+                  floor,
+                  asset: placeAsset,
+                  point: p,
+                  rotation: placeRotation,
+                  scale: [1, 1, 1],
+                  grid: settings.grid,
+                  snap: settings.snap && !e.shiftKey,
+              })
+            : null;
+
     const hitRoom = (p: Vec2): DetectedRoom | null => {
         const inside = rooms.filter(r => pointInPolygon(p, r.polygon));
         return inside.sort((a, b) => a.area - b.area)[0] ?? null;
@@ -196,6 +234,15 @@ export function PlanEditor() {
             if (prev) api().addOpening(prev.frame.wall.id, tool, prev.u);
             return;
         }
+        if (tool === 'place') {
+            const pl = placement(p, e);
+            if (pl && placeAsset) {
+                const { againstWall: _w, ...pos } = pl;
+                void _w;
+                api().addObject({ assetId: placeAsset.id, name: placeAsset.name, scale: [1, 1, 1], ...pos });
+            }
+            return;
+        }
         if (tool === 'calibrate') {
             setCalib(c => (c.length >= 2 ? [p] : [...c, p]));
             return;
@@ -215,6 +262,13 @@ export function PlanEditor() {
             api().select({ kind: 'node', id: node });
             api().beginGesture();
             drag.current = { kind: 'node', id: node };
+            return;
+        }
+        const obj = hitObject(p);
+        if (obj) {
+            api().select({ kind: 'object', id: obj });
+            api().beginGesture();
+            drag.current = { kind: 'object', id: obj, start: p, origin: [floor.objects[obj].x, floor.objects[obj].y] };
             return;
         }
         const op = hitOpening(p);
@@ -271,6 +325,24 @@ export function PlanEditor() {
             api().updateOpening(d.wallId, d.id, { offset: clamped.offset });
             return;
         }
+        if (d?.kind === 'object') {
+            const o = floor.objects[d.id];
+            const asset = o && findAsset(project, o.assetId);
+            if (!o || !asset) return;
+            const target = add(d.origin, sub(p, d.start));
+            const pl = computePlacement({
+                floor,
+                asset,
+                point: target,
+                rotation: o.rotation,
+                scale: o.scale,
+                elevation: o.elevation,
+                grid: settings.grid,
+                snap: settings.snap && !e.shiftKey,
+            });
+            api().updateObject(d.id, { x: pl.x, y: pl.y, rotation: pl.rotation, elevation: pl.elevation });
+            return;
+        }
         if (d?.kind === 'background' && floor.background) {
             const delta = sub(p, d.start);
             api().updateFloor(floor.id, { background: { ...floor.background, x: d.origin[0] + delta[0], y: d.origin[1] + delta[1] } });
@@ -279,6 +351,7 @@ export function PlanEditor() {
 
         if (tool === 'wall') setCursor(snap(p, e, { from: drawFrom?.point }));
         else if (tool === 'door' || tool === 'window') setHoverPreview(openingPreview(p));
+        else if (tool === 'place') setPlacePoint(p);
         else if (tool === 'calibrate') setCursor({ point: p, target: { kind: 'point', point: p }, kind: 'free', guides: [] });
         else setCursor(null);
     };
@@ -402,7 +475,7 @@ export function PlanEditor() {
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
-                onPointerLeave={() => !drag.current && (setCursor(null), setHoverPreview(null))}
+                onPointerLeave={() => !drag.current && (setCursor(null), setHoverPreview(null), setPlacePoint(null))}
                 onWheel={onWheel}
                 onDoubleClick={() => tool === 'wall' && (setDrawFrom(null), setTyped(''))}
                 onContextMenu={e => e.preventDefault()}
@@ -463,6 +536,40 @@ export function PlanEditor() {
                         return <OpeningSymbol key={o.id} frame={fr} u={o.offset} width={o.width} type={o.type} selected={selected} mpp={mpp} />;
                     }),
                 )}
+
+                {objectsDrawn.map(({ o, asset }) => (
+                    <ObjectSymbol
+                        key={o.id}
+                        poly={objectFootprint(o, asset)}
+                        rotation={o.rotation}
+                        center={[o.x, o.y]}
+                        depth={asset.size[2] * o.scale[2]}
+                        label={o.name ?? asset.name}
+                        mount={asset.mount}
+                        selected={sel?.kind === 'object' && sel.id === o.id}
+                        mpp={mpp}
+                    />
+                ))}
+                {placeAsset &&
+                    placePoint &&
+                    (() => {
+                        const pl = placement(placePoint, { shiftKey: false });
+                        if (!pl) return null;
+                        const ghost = { ...pl, scale: [1, 1, 1] as [number, number, number] };
+                        return (
+                            <ObjectSymbol
+                                poly={objectFootprint(ghost, placeAsset)}
+                                rotation={pl.rotation}
+                                center={[pl.x, pl.y]}
+                                depth={placeAsset.size[2]}
+                                label={placeAsset.name}
+                                mount={placeAsset.mount}
+                                selected
+                                preview
+                                mpp={mpp}
+                            />
+                        );
+                    })()}
 
                 {hoverPreview && (
                     <OpeningSymbol
@@ -546,6 +653,11 @@ export function PlanEditor() {
                 )}
                 {(tool === 'door' || tool === 'window') && <span className="hint">Auf eine Wand klicken, um {tool === 'door' ? 'eine Tür' : 'ein Fenster'} einzusetzen</span>}
                 {tool === 'select' && <span className="hint">Klicken: auswählen · Ziehen: verschieben · Leere Fläche ziehen: Ansicht bewegen · Mausrad: Zoom</span>}
+                {tool === 'place' && (
+                    <span className="hint">
+                        {placeAsset ? `${placeAsset.name} platzieren: klicken · R: drehen · nahe einer Wand rastet es an · Esc/V: fertig` : 'Objekt in der Bibliothek wählen'}
+                    </span>
+                )}
                 {tool === 'background' && <span className="hint">{bg ? 'Ziehen, um den Grundriss zu verschieben' : 'Zuerst rechts ein Bild laden'}</span>}
                 {tool === 'calibrate' && calib.length < 2 && <span className="hint">Zwei Punkte mit bekanntem Abstand im Bild anklicken</span>}
             </div>
@@ -607,6 +719,38 @@ function OpeningSymbol(props: { frame: WallFrame; u: number; width: number; type
                     <line x1={-width / 2} y1={t / 2} x2={-width / 2} y2={t / 2 + width} className="opening-line" />
                     <path d={`M ${-width / 2} ${t / 2 + width} A ${width} ${width} 0 0 0 ${width / 2} ${t / 2}`} className="opening-arc" />
                 </>
+            )}
+        </g>
+    );
+}
+
+function ObjectSymbol(props: {
+    poly: Vec2[];
+    center: Vec2;
+    rotation: number;
+    depth: number;
+    label: string;
+    mount: string;
+    selected?: boolean;
+    preview?: boolean;
+    mpp: number;
+}) {
+    const { front } = objectAxes(props.rotation);
+    const tip = add(props.center, scale(front, props.depth / 2));
+    const cls = `object mount-${props.mount} ${props.selected ? 'selected' : ''} ${props.preview ? 'preview' : ''}`;
+    // label only when it fits into the footprint (in screen pixels), or when selected
+    const edge = (i: number) => Math.hypot(props.poly[i + 1][0] - props.poly[i][0], props.poly[i + 1][1] - props.poly[i][1]) / props.mpp;
+    const fits = Math.max(edge(0), edge(1)) > props.label.length * 6 + 6 && Math.min(edge(0), edge(1)) > 14;
+    const showLabel = props.selected || (fits && props.mount !== 'ceiling');
+    return (
+        <g className={cls}>
+            <polygon points={ptsAttr(props.poly)} />
+            {/* front edge marker */}
+            <line x1={props.center[0]} y1={props.center[1]} x2={tip[0]} y2={tip[1]} className="object-front" />
+            {showLabel && (
+                <text x={props.center[0]} y={props.center[1]} fontSize={10 * props.mpp} textAnchor="middle" dominantBaseline="central">
+                    {props.label}
+                </text>
             )}
         </g>
     );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -21,6 +21,8 @@ export interface FloorModelProps {
     onRoomClick?: (room: DetectedRoom, e: ThreeEvent<MouseEvent>) => void;
     onRoomHover?: (index: number | null) => void;
     onWallClick?: (wallId: string, e: ThreeEvent<MouseEvent>) => void;
+    /** Placed objects etc., rendered in the storey's coordinate frame and faded with it. */
+    children?: ReactNode;
 }
 
 const COLORS = {
@@ -35,7 +37,8 @@ const COLORS = {
 export function FloorModel(props: FloorModelProps) {
     const { floor, elevation, offset, opacity, showLabels } = props;
     const group = useRef<THREE.Group>(null);
-    const current = useRef({ offset, opacity });
+    const objects = useRef<THREE.Group>(null);
+    const current = useRef({ offset, opacity, applied: 1 });
 
     const geometry = useMemo(() => computeWallGeometry(floor), [floor]);
     const rooms = useMemo(() => detectRooms(floor), [floor]);
@@ -117,6 +120,27 @@ export function FloorModel(props: FloorModelProps) {
             m.depthWrite = c.opacity > 0.5;
         }
         mats.glass.opacity = 0.35 * c.opacity;
+
+        // fade the placed objects' own materials (only while the opacity changes)
+        if (objects.current && (c.applied !== c.opacity || c.opacity < 0.999)) {
+            c.applied = c.opacity;
+            objects.current.traverse(o => {
+                const mesh = o as THREE.Mesh;
+                if (!mesh.isMesh) return;
+                for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+                    if (m.userData.baseOpacity === undefined) {
+                        m.userData.baseOpacity = m.opacity;
+                        m.userData.baseTransparent = m.transparent;
+                    }
+                    const transparent = m.userData.baseTransparent || c.opacity < 0.999;
+                    if (m.transparent !== transparent) {
+                        m.transparent = transparent;
+                        m.needsUpdate = true;
+                    }
+                    m.opacity = m.userData.baseOpacity * c.opacity;
+                }
+            });
+        }
     });
 
     return (
@@ -148,6 +172,7 @@ export function FloorModel(props: FloorModelProps) {
             {Object.values(geometry.frames).flatMap(fr =>
                 fr.wall.openings.map(o => <OpeningModel key={o.id} frame={fr} opening={o} mats={mats} />),
             )}
+            <group ref={objects}>{props.children}</group>
             {showLabels &&
                 rooms
                     .filter(r => r.meta)

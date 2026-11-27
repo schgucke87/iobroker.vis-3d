@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { CameraControls } from '@react-three/drei';
+import { CameraControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { floorElevations, useEditor } from '../model/store';
-import type { DetectedRoom, Floor, Project } from '../model/types';
+import { findAsset, floorElevations, normalizeAngle, useEditor } from '../model/store';
+import type { DetectedRoom, Floor, Project, Vec2 } from '../model/types';
 import { FloorModel } from './FloorModel';
+import { ObjectInstance } from './Objects3D';
+import { computePlacement } from '../geometry/placement';
 
 const EXPLODE_GAP = 3.5;
 const POLAR_BUILDING = THREE.MathUtils.degToRad(62);
@@ -57,6 +59,13 @@ export function Scene3D({ editable }: { editable: boolean }) {
     const setFocusFloor = useEditor(s => s.setFocusFloor);
     const setActiveFloor = useEditor(s => s.setActiveFloor);
     const select = useEditor(s => s.select);
+    const tool = useEditor(s => s.tool);
+    const placeAssetId = useEditor(s => s.placeAssetId);
+    const placeRotation = useEditor(s => s.placeRotation);
+    const gizmo = useEditor(s => s.gizmo);
+    const settings = useEditor(s => s.settings);
+    const [selectedGroup, setSelectedGroup] = useState<THREE.Group | null>(null);
+    const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
 
     const controls = useRef<CameraControls>(null);
     const [focusRoom, setFocusRoom] = useState<DetectedRoom | null>(null);
@@ -103,6 +112,36 @@ export function Scene3D({ editable }: { editable: boolean }) {
     }, [navKey]);
 
     const selectedWallId = selection?.kind === 'wall' ? selection.id : undefined;
+    const selectedObjectId = selection?.kind === 'object' ? selection.id : undefined;
+    const placing = editable && tool === 'place' && !!placeAssetId && focusIndex >= 0;
+    const placeAsset = placeAssetId ? findAsset(project, placeAssetId) : undefined;
+    const focusFloor = focusIndex >= 0 ? project.floors[focusIndex] : undefined;
+    const placement =
+        placing && placeAsset && placePoint && focusFloor
+            ? computePlacement({
+                  floor: focusFloor,
+                  asset: placeAsset,
+                  point: placePoint,
+                  rotation: placeRotation,
+                  scale: [1, 1, 1],
+                  grid: settings.grid,
+                  snap: settings.snap,
+              })
+            : null;
+
+    /** Writes the gizmo result back to the store. */
+    const commitTransform = () => {
+        const g = selectedGroup;
+        if (!g || !selectedObjectId) return;
+        const grid = settings.snap ? settings.grid : 0;
+        const r = (v: number) => (grid ? Math.round(v / grid) * grid : v);
+        useEditor.getState().updateObject(selectedObjectId, {
+            x: r(g.position.x),
+            y: r(g.position.z),
+            elevation: Math.max(0, r(g.position.y)),
+            rotation: normalizeAngle(g.rotation.y),
+        });
+    };
 
     return (
         <Canvas shadows camera={{ position: [18, 16, 22], fov: 40, near: 0.1, far: 500 }} onPointerMissed={() => setHover(null)}>
@@ -136,7 +175,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                         opacity={hidden ? 0 : 1}
                         showLabels={isFocus}
                         selectedWallId={isFocus || focusIndex < 0 ? selectedWallId : undefined}
-                        hoverRoom={hover?.floor === f.id ? hover.room : null}
+                        hoverRoom={hover?.floor === f.id && !placing ? hover.room : null}
                         onFloorClick={
                             focusIndex < 0 || (!isFocus && !hidden)
                                 ? e => {
@@ -147,7 +186,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                                 : undefined
                         }
                         onRoomClick={
-                            isFocus
+                            isFocus && !placing
                                 ? (room, e) => {
                                       e.stopPropagation();
                                       setFocusRoom(room);
@@ -155,18 +194,76 @@ export function Scene3D({ editable }: { editable: boolean }) {
                                   }
                                 : undefined
                         }
-                        onRoomHover={isFocus ? room => setHover(room === null ? null : { floor: f.id, room }) : undefined}
+                        onRoomHover={isFocus && !placing ? room => setHover(room === null ? null : { floor: f.id, room }) : undefined}
                         onWallClick={
-                            isFocus && editable
+                            isFocus && editable && !placing
                                 ? (id, e) => {
                                       e.stopPropagation();
                                       select({ kind: 'wall', id });
                                   }
                                 : undefined
                         }
-                    />
+                    >
+                        {Object.values(f.objects).map(o => {
+                            const asset = findAsset(project, o.assetId);
+                            if (!asset) return null;
+                            const selected = isFocus && o.id === selectedObjectId;
+                            return (
+                                <ObjectInstance
+                                    key={o.id}
+                                    obj={o}
+                                    asset={asset}
+                                    selected={selected}
+                                    groupRef={selected ? setSelectedGroup : undefined}
+                                    onClick={
+                                        isFocus && editable && !placing
+                                            ? e => {
+                                                  e.stopPropagation();
+                                                  select({ kind: 'object', id: o.id });
+                                              }
+                                            : undefined
+                                    }
+                                />
+                            );
+                        })}
+                        {isFocus && placing && (
+                            <mesh
+                                rotation={[-Math.PI / 2, 0, 0]}
+                                position={[0, 0.002, 0]}
+                                onPointerMove={e => setPlacePoint([e.point.x, e.point.z])}
+                                onPointerOut={() => setPlacePoint(null)}
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    if (!placement || !placeAsset) return;
+                                    const { againstWall: _w, ...pos } = placement;
+                                    void _w;
+                                    useEditor.getState().addObject({ assetId: placeAsset.id, name: placeAsset.name, scale: [1, 1, 1], ...pos });
+                                }}
+                            >
+                                <planeGeometry args={[400, 400]} />
+                                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+                            </mesh>
+                        )}
+                        {isFocus && placement && placeAsset && (
+                            <ObjectInstance obj={{ ...placement, scale: [1, 1, 1] }} asset={placeAsset} ghost />
+                        )}
+                    </FloorModel>
                 );
             })}
+
+            {editable && selectedObjectId && selectedGroup && tool === 'select' && (
+                <TransformControls
+                    object={selectedGroup}
+                    mode={gizmo}
+                    size={0.8}
+                    showX={gizmo === 'translate'}
+                    showZ={gizmo === 'translate'}
+                    showY
+                    translationSnap={settings.snap ? settings.grid : null}
+                    rotationSnap={settings.snap ? Math.PI / 12 : null}
+                    onMouseUp={commitTransform}
+                />
+            )}
 
             <CameraControls ref={controls} makeDefault minDistance={2} maxDistance={150} maxPolarAngle={Math.PI / 2 - 0.05} />
         </Canvas>

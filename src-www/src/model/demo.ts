@@ -2,6 +2,7 @@ import type { Floor, Project, Vec2 } from './types';
 import * as ops from './ops';
 import { newFloor } from './store';
 import { projectOnSegment } from '../geometry/vec';
+import { builtinAssets } from '../assets/builtin';
 
 const OUTER = { thickness: 0.36, height: 2.6 };
 const INNER = { thickness: 0.115, height: 2.6 };
@@ -33,6 +34,19 @@ function room(f: Floor, name: string, anchor: Vec2, enumId?: string) {
     f.rooms[id] = { id, name, anchor, enumId };
 }
 
+const N = Math.PI; // facing north (-y)
+const E = Math.PI / 2; // facing east (+x)
+const W = -Math.PI / 2; // facing west (-x)
+const S = 0; // facing south (+y)
+
+/** Places a built-in asset; ceiling objects hang from the ceiling. */
+function put(f: Floor, asset: string, x: number, y: number, rotation = S, elevation?: number) {
+    const meta = builtinAssets().find(a => a.id === `builtin:${asset}`)!;
+    const id = ops.uid('o');
+    const elev = elevation ?? (meta.mount === 'ceiling' ? f.height - meta.size[1] : 0);
+    f.objects[id] = { id, assetId: meta.id, name: meta.name, x, y, elevation: elev, rotation, scale: [1, 1, 1] };
+}
+
 export function demoProject(): Project {
     const eg = newFloor('Erdgeschoss');
     eg.height = 2.6;
@@ -58,6 +72,22 @@ export function demoProject(): Project {
     room(eg, 'Küche', [8.5, 2], 'enum.rooms.kitchen');
     room(eg, 'Gäste-WC', [7.2, 6.5], 'enum.rooms.wc');
     room(eg, 'Hauswirtschaft', [9.7, 6.5]);
+    put(eg, 'sofa', 2.1, 3.7, E);
+    put(eg, 'coffeeTable', 3.4, 3.7, E);
+    put(eg, 'armchair', 3.4, 2.2, S);
+    put(eg, 'floorLamp', 0.6, 4.5);
+    put(eg, 'plant', 5.4, 0.6);
+    put(eg, 'sideboard', 5.72, 3.7, W);
+    put(eg, 'tv', 5.92, 3.7, W, 0.95);
+    put(eg, 'ceilingLamp', 3, 2.5);
+    put(eg, 'kitchen', 7.5, 0.49, S);
+    put(eg, 'fridge', 9.25, 0.51, S);
+    put(eg, 'diningTable', 8.5, 2.65);
+    put(eg, 'chair', 8.1, 1.95, S);
+    put(eg, 'chair', 8.9, 1.95, S);
+    put(eg, 'chair', 8.1, 3.35, N);
+    put(eg, 'chair', 8.9, 3.35, N);
+    put(eg, 'ceilingLamp', 8.5, 2.65);
 
     const og = newFloor('Obergeschoss');
     og.height = 2.5;
@@ -79,6 +109,14 @@ export function demoProject(): Project {
     room(og, 'Kinderzimmer', [8, 2.2], 'enum.rooms.nursery');
     room(og, 'Bad', [2.5, 7.5], 'enum.rooms.bathroom');
     room(og, 'Arbeitszimmer', [8, 6.7], 'enum.rooms.office');
+    put(og, 'bed', 2.5, 1.24, S);
+    put(og, 'wardrobe', 4.64, 4.6, W);
+    put(og, 'plant', 0.5, 5.4);
+    put(og, 'desk', 10.46, 8.0, W);
+    put(og, 'chair', 9.85, 8.0, E);
+    put(og, 'sideboard', 6.0, 8.6, N);
+    put(og, 'bed', 9.5, 1.9, W);
+    put(og, 'ceilingLamp', 2.5, 3);
 
-    return { version: 1, name: 'Beispielhaus', floors: [eg, og] };
+    return { version: 1, name: 'Beispielhaus', floors: [eg, og], assets: {} };
 }

@@ -4,6 +4,13 @@
  * (writeFile('vis-3d.0', '<project>/project.json')) will plug in here.
  */
 import type { Project } from '../model/types';
+import { normalizeProject } from '../model/store';
+import { base64ToBuffer, bufferToBase64, getAssetData, putAssetData } from '../assets/assetStore';
+
+/** Project file format: the project plus the imported models embedded as base64 GLB. */
+interface ProjectFile extends Project {
+    assetData?: Record<string, string>;
+}
 
 const KEY = 'vis3d.project';
 
@@ -12,7 +19,7 @@ export function loadLocal(): Project | null {
         const raw = localStorage.getItem(KEY);
         if (!raw) return null;
         const p = JSON.parse(raw) as Project;
-        return p && p.version === 1 && Array.isArray(p.floors) && p.floors.length ? p : null;
+        return p && p.version === 1 && Array.isArray(p.floors) && p.floors.length ? normalizeProject(p) : null;
     } catch {
         return null;
     }
@@ -26,8 +33,14 @@ export function saveLocal(p: Project): void {
     }
 }
 
-export function exportProject(p: Project) {
-    const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' });
+export async function exportProject(p: Project) {
+    const assetData: Record<string, string> = {};
+    for (const id of Object.keys(p.assets)) {
+        const data = await getAssetData(id);
+        if (data) assetData[id] = bufferToBase64(data);
+    }
+    const file: ProjectFile = { ...p, assetData };
+    const blob = new Blob([JSON.stringify(file)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `${p.name.replace(/[^\w\-äöüÄÖÜß ]+/g, '_') || 'projekt'}.vis3d.json`;
@@ -44,9 +57,10 @@ export function importProjectFile(): Promise<Project> {
             const file = input.files?.[0];
             if (!file) return reject(new Error('Keine Datei gewählt'));
             try {
-                const p = JSON.parse(await file.text()) as Project;
+                const { assetData, ...p } = JSON.parse(await file.text()) as ProjectFile;
                 if (p.version !== 1 || !Array.isArray(p.floors)) throw new Error('Unbekanntes Dateiformat');
-                resolve(p);
+                for (const [id, b64] of Object.entries(assetData ?? {})) await putAssetData(id, base64ToBuffer(b64));
+                resolve(normalizeProject(p));
             } catch (e) {
                 reject(e);
             }

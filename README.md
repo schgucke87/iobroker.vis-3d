@@ -18,6 +18,15 @@
 - Das darunterliegende Stockwerk wird gestrichelt eingeblendet
 - Rückgängig / Wiederholen (Strg+Z / Strg+Y)
 
+**Modelle & Einrichtung**
+- Import von GLB/glTF, OBJ (+MTL), FBX und STL per Dateiauswahl oder Drag & Drop; Texturen und .bin-Dateien einfach mit auswählen
+- Import-Dialog mit 3D-Vorschau: Einheit (automatisch erkannt: m/cm/mm/Zoll), Z-up-Korrektur, Drehen, Zielmaße
+- Modelle werden normalisiert (Meter, Y oben, Drehpunkt unten mittig, Front +Z) und als GLB gespeichert, inkl. Vorschaubild
+- Eingebaute Grundausstattung (Sofa, Sessel, Tische, Stuhl, Bett, Schrank, Küche, Kühlschrank, TV, Leuchten, Pflanze …)
+- Platzieren in 2D oder 3D: Möbel docken mit der Rückseite an nahe Wände an, Wandobjekte hängen an der Wand, Deckenleuchten an der Decke
+- Verschieben/Drehen in 2D (Ziehen, R) und 3D (Gizmo), Größe, Höhe, Duplizieren (Strg+D)
+- Projekt-Export enthält die importierten Modelle
+
 **3D-Ansicht**
 - Gesamtes Gebäude → Stockwerk → Raum: Kamera fliegt jeweils weich auf das Ziel, obere Stockwerke werden ausgeblendet
 - Explosionsansicht (Stockwerke auseinandergezogen)
@@ -33,7 +42,7 @@ npm test           # Geometrie-Tests (Raumerkennung, Gehrungen, Editier-Operatio
 npm run build      # baut nach www/ (wird vom ioBroker web-Adapter unter /vis-3d/ ausgeliefert)
 ```
 
-Das Projekt wird vorerst im `localStorage` des Browsers gespeichert und kann als JSON exportiert/importiert werden.
+Das Projekt wird vorerst im `localStorage` des Browsers gespeichert, importierte Modelle in der IndexedDB. Als JSON exportiert, enthält die Datei auch die Modelle.
 
 ### Tastenkürzel
 
@@ -43,6 +52,8 @@ Das Projekt wird vorerst im `localStorage` des Browsers gespeichert und kann als
 | W | Wand zeichnen |
 | D | Tür |
 | F | Fenster |
+| R / Shift+R | Objekt (oder Platzier-Vorschau) um 90° drehen |
+| Strg+D | Objekt duplizieren |
 | Esc / Doppelklick / Rechtsklick | Wandzug beenden |
 | Shift (gehalten) | Fangen aus |
 | Entf | Auswahl löschen |
@@ -57,6 +68,7 @@ src-www/src/
   editor2d/   SVG-Grundriss-Editor und Fang-Logik
   view3d/     react-three-fiber Szene, Stockwerke, Kameranavigation
   ui/         Panels (Stockwerke, Eigenschaften)
+  assets/     eingebaute Modelle, Import (Loader, Normalisierung, GLB-Export, Vorschaubilder), Asset-Speicher (IndexedDB)
   storage/    Persistenz (localStorage, später ioBroker-Dateisystem)
 ```
 
@@ -66,7 +78,8 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 
 - [x] Wand-Editor, Raumerkennung, Türen/Fenster, Grundriss-Vorlage
 - [x] Stockwerke, 3D-Navigation (Gebäude → Stockwerk → Raum), Explosionsansicht
-- [ ] Modell-Import (GLB/glTF, OBJ, FBX, STL) mit Bibliothek, Vorschaubildern und Platzieren auf Boden/Wand
+- [x] Modell-Import (GLB/glTF, OBJ, FBX, STL) mit Bibliothek, Vorschaubildern und Platzieren auf Boden/Wand/Decke
+- [ ] Modell-Kompression (Draco/Meshopt) und Textur-Verkleinerung beim Import
 - [ ] Verhalten an Objekten (Leuchten, Bewegen, Färben, Sichtbarkeit, Klick-Aktion, Label) mit Datenpunkt-Bindung
 - [ ] ioBroker-Anbindung: socket-client, Speichern im ioBroker-Dateisystem, SelectID-Dialog
 - [ ] Automatische Vorschläge über `enum.rooms` + type-detector
