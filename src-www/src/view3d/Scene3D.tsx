@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { CameraControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { findAsset, floorElevations, normalizeAngle, useEditor } from '../model/store';
@@ -64,6 +64,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     const placeRotation = useEditor(s => s.placeRotation);
     const gizmo = useEditor(s => s.gizmo);
     const settings = useEditor(s => s.settings);
+    const heatmap = useEditor(s => s.heatmap);
     const [selectedGroup, setSelectedGroup] = useState<THREE.Group | null>(null);
     const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
 
@@ -174,6 +175,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                         offset={offsets[i]}
                         opacity={hidden ? 0 : 1}
                         showLabels={isFocus}
+                        heatmap={heatmap}
                         selectedWallId={isFocus || focusIndex < 0 ? selectedWallId : undefined}
                         hoverRoom={hover?.floor === f.id && !placing ? hover.room : null}
                         onFloorClick={
@@ -214,6 +216,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                                     obj={o}
                                     asset={asset}
                                     selected={selected}
+                                    interactive={!editable}
                                     groupRef={selected ? setSelectedGroup : undefined}
                                     onClick={
                                         isFocus && editable && !placing
@@ -265,7 +268,20 @@ export function Scene3D({ editable }: { editable: boolean }) {
                 />
             )}
 
+            <DebugHandle />
             <CameraControls ref={controls} makeDefault minDistance={2} maxDistance={150} maxPolarAngle={Math.PI / 2 - 0.05} />
         </Canvas>
     );
+}
+
+/** With ?debug, exposes the camera so tests can project scene positions to the screen. */
+function DebugHandle() {
+    const camera = useThree(s => s.camera);
+    const gl = useThree(s => s.gl);
+    useEffect(() => {
+        if (!new URLSearchParams(location.search).has('debug')) return;
+        const w = window as unknown as { __vis3d?: Record<string, unknown> };
+        w.__vis3d = { ...w.__vis3d, camera, canvas: gl.domElement };
+    }, [camera, gl]);
+    return null;
 }

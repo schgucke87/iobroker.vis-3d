@@ -16,8 +16,15 @@
       "en": "3D visualization with wall editor, model import and state-driven objects",
       "de": "3D-Visualisierung mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten"
     },
-    "authors": ["schgucke87"],
-    "keywords": ["visualization", "3d", "floorplan", "vis"],
+    "authors": [
+      "schgucke87"
+    ],
+    "keywords": [
+      "visualization",
+      "3d",
+      "floorplan",
+      "vis"
+    ],
     "license": "MIT",
     "platform": "Javascript/Node.js",
     "icon": "vis-3d.svg",
@@ -34,10 +41,31 @@
       "_default": "%web_protocol%://%ip%:%web_port%/vis-3d/index.html",
       "Editor": "%web_protocol%://%ip%:%web_port%/vis-3d/index.html?edit=1"
     },
-    "dependencies": [{ "js-controller": ">=5.0.0" }],
-    "globalDependencies": [{ "web": ">=6.0.0" }]
+    "dependencies": [
+      {
+        "js-controller": ">=5.0.0"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "web": ">=6.0.0"
+      }
+    ]
   },
   "native": {},
   "objects": [],
-  "instanceObjects": []
+  "instanceObjects": [
+    {
+      "_id": "",
+      "type": "meta",
+      "common": {
+        "name": {
+          "en": "Project files",
+          "de": "Projektdateien"
+        },
+        "type": "meta.user"
+      },
+      "native": {}
+    }
+  ]
 }

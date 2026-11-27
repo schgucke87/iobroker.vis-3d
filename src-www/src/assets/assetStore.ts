@@ -1,14 +1,22 @@
 /**
  * Storage and loading of 3D model assets.
  *
- * Imported models are stored as normalised GLB blobs. In the standalone app
- * they live in the browser's IndexedDB; with ioBroker they will go to the
- * adapter's file storage (vis-3d.0/assets/<id>.glb) behind the same API.
+ * Imported models are stored as normalised GLB blobs: with ioBroker in the
+ * adapter instance's file storage (vis-3d.0/main/assets/<id>.glb), in the
+ * standalone app in the browser's IndexedDB.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { createBuiltin, isBuiltin } from './builtin';
+import type { FileStore } from '../iobroker/backend';
+
+let remote: FileStore | null = null;
+/** Store models in ioBroker's file storage instead of the browser's IndexedDB. */
+export function setAssetFiles(f: FileStore | null) {
+    remote = f;
+}
+const assetPath = (id: string) => `main/assets/${id}.glb`;
 
 const DB_NAME = 'vis3d-assets';
 const STORE = 'glb';
@@ -37,9 +45,12 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
     );
 }
 
-export const putAssetData = (id: string, data: ArrayBuffer) => tx('readwrite', s => s.put(data, id));
-export const getAssetData = (id: string) => tx<ArrayBuffer | undefined>('readonly', s => s.get(id));
-export const deleteAssetData = (id: string) => tx('readwrite', s => s.delete(id));
+export const putAssetData = (id: string, data: ArrayBuffer): Promise<unknown> =>
+    remote ? remote.writeBinary(assetPath(id), data) : tx('readwrite', s => s.put(data, id));
+export const getAssetData = async (id: string): Promise<ArrayBuffer | undefined> =>
+    remote ? ((await remote.readBinary(assetPath(id))) ?? undefined) : tx<ArrayBuffer | undefined>('readonly', s => s.get(id));
+export const deleteAssetData = (id: string): Promise<unknown> =>
+    remote ? remote.delete(assetPath(id)) : tx('readwrite', s => s.delete(id));
 
 // ---------- loading ----------
 

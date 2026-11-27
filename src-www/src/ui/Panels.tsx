@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { activeFloor, findAsset, floorElevations, useEditor } from '../model/store';
 import { MOUNT_LABELS } from './Library';
+import { BehaviorList } from './Behaviors';
+import { StateIdField } from './Datapoints';
 import { detectRooms } from '../geometry/rooms';
 import { pointInPolygon } from '../geometry/vec';
 import { computeWallGeometry } from '../geometry/walls';
@@ -99,6 +101,14 @@ export function PropertiesPanel() {
                     <NumberField label="Höhe" unit="m" value={o.height} min={0.2} onChange={v => up({ height: Math.max(0.2, v) })} />
                     <NumberField label="Brüstung" unit="m" value={o.sill} min={0} onChange={v => up({ sill: Math.max(0, v) })} />
                     <NumberField label="Position" unit="m" value={o.offset} onChange={v => up({ offset: v })} />
+                    <h3>{o.type === 'door' ? 'Türkontakt' : 'Fensterkontakt'}</h3>
+                    <StateIdField label="Datenpunkt" value={o.stateId} roleHint="sensor" onChange={stateId => up({ stateId: stateId || undefined })} />
+                    {o.stateId && (
+                        <label className="field check">
+                            <input type="checkbox" checked={!!o.invert} onChange={e => up({ invert: e.target.checked })} />
+                            <span>Umkehren (wahr = geschlossen)</span>
+                        </label>
+                    )}
                     <button className="danger" onClick={() => s().deleteSelection()}>Löschen</button>
                 </>
             );
@@ -132,6 +142,19 @@ export function PropertiesPanel() {
                         <input type="color" value={room.meta?.floorColor ?? '#d8c6a5'} onChange={e => s().updateRoom(selection.anchor, { floorColor: e.target.value })} />
                     </label>
                     <div className="info">Fläche: {room.area.toFixed(2).replace('.', ',')} m²</div>
+                    <h3>Raumklima</h3>
+                    <StateIdField
+                        label="Temperatur"
+                        value={room.meta?.temperatureId}
+                        roleHint="value.temperature"
+                        onChange={id => s().updateRoom(selection.anchor, { temperatureId: id || undefined })}
+                    />
+                    <StateIdField
+                        label="Luftfeuchte"
+                        value={room.meta?.humidityId}
+                        roleHint="value.humidity"
+                        onChange={id => s().updateRoom(selection.anchor, { humidityId: id || undefined })}
+                    />
                 </>
             );
         }
@@ -231,6 +254,8 @@ function ObjectProps({ id }: { id: string }) {
             <button disabled={o.scale.every(v => v === 1)} onClick={() => up({ scale: [1, 1, 1] })}>
                 Originalgröße
             </button>
+            <h3>Verhalten (ioBroker)</h3>
+            <BehaviorList behaviors={o.behaviors ?? []} onChange={behaviors => up({ behaviors })} />
             <h3>3D-Gizmo</h3>
             <div className="row">
                 <button className={gizmo === 'translate' ? 'active' : ''} onClick={() => s().setGizmo('translate')}>Verschieben</button>

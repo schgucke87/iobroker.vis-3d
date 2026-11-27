@@ -28,9 +28,13 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepare": "npm run build"
   },
   "devDependencies": {
+    "@iobroker/socket-client": "^5.7.0",
+    "@iobroker/type-detector": "^6.2.0",
+    "@iobroker/types": "^7.2.5",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@types/react": "^19.3.3",

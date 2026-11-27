@@ -6,6 +6,9 @@ import { FloorPanel, PropertiesPanel } from './ui/Panels';
 import { LibraryPanel } from './ui/Library';
 import { exportProject, importProjectFile } from './storage/local';
 import { demoProject } from './model/demo';
+import { useConnection } from './iobroker/connect';
+import { useSaveStatus } from './storage/saveStatus';
+import { storageLabel } from './storage/local';
 
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
     { id: 'select', label: 'Auswählen', key: 'V', icon: '↖' },
@@ -86,12 +89,13 @@ function EditorApp() {
                     </button>
                 </div>
                 <div className="spacer" />
+                <StatusBadge />
                 <div className="group">
-                    <button onClick={() => confirm('Aktuelles Projekt durch das Beispielhaus ersetzen?') && s().setProject(demoProject())}>Beispiel</button>
+                    <button onClick={() => confirm('Aktuelles Projekt durch das Beispielhaus ersetzen?') && s().setProject(demoProject({ bindings: useConnection.getState().backend?.kind === 'demo' }))}>Beispiel</button>
                     <button onClick={() => confirm('Neues, leeres Projekt beginnen?') && s().setProject(emptyProject())}>Neu</button>
                     <button onClick={() => importProjectFile().then(p => s().setProject(p)).catch(e => e && alert(String(e.message ?? e)))}>Öffnen</button>
                     <button onClick={() => void exportProject(s().project)}>Exportieren</button>
-                    <a className="button" href="?" target="_blank" rel="noreferrer">Ansicht ↗</a>
+                    <a className="button" href={viewerHref()} target="_blank" rel="noreferrer">Ansicht ↗</a>
                 </div>
             </header>
             <aside className="left">
@@ -113,6 +117,31 @@ function EditorApp() {
             <aside className="right">
                 <PropertiesPanel />
             </aside>
+        </div>
+    );
+}
+
+/** Viewer URL keeping connection parameters such as ?host= or ?demo. */
+function viewerHref() {
+    const p = new URLSearchParams(location.search);
+    p.delete('edit');
+    const q = p.toString();
+    return q ? `?${q}` : '?';
+}
+
+function StatusBadge() {
+    const backend = useConnection(s => s.backend);
+    const reason = useConnection(s => s.fallbackReason);
+    const save = useSaveStatus();
+    const live = backend?.kind === 'iobroker';
+    const saveText = save.status === 'saving' ? 'speichert …' : save.status === 'error' ? 'Speichern fehlgeschlagen' : 'gespeichert';
+    return (
+        <div
+            className={`status-badge ${live ? 'live' : 'demo'} ${save.status === 'error' ? 'error' : ''}`}
+            title={[backend?.label, reason && `Grund: ${reason}`, `Speicherort: ${storageLabel()}`, save.error].filter(Boolean).join('\n')}
+        >
+            <span className="dot" />
+            {live ? 'ioBroker' : 'Demo-Daten'} · {saveText}
         </div>
     );
 }
@@ -143,6 +172,7 @@ function FloorNav({ editable = false }: { editable?: boolean }) {
     const floors = useEditor(s => s.project.floors);
     const focus = useEditor(s => s.focusFloorId);
     const explode = useEditor(s => s.explode);
+    const heatmap = useEditor(s => s.heatmap);
     const s = useEditor.getState;
     return (
         <nav className="floor-nav">
@@ -166,6 +196,9 @@ function FloorNav({ editable = false }: { editable?: boolean }) {
                     ⇕ Explosion
                 </button>
             )}
+            <button className={heatmap ? 'active' : ''} onClick={() => s().setHeatmap(!heatmap)} title="Räume nach Temperatur einfärben">
+                🌡 Heatmap
+            </button>
         </nav>
     );
 }
@@ -175,7 +208,7 @@ function ViewerApp() {
         <div className="viewer">
             <Scene3D editable={false} />
             <FloorNav />
-            <a className="edit-link" href="?edit=1">✎ Bearbeiten</a>
+            <a className="edit-link" href={`?edit=1${location.search.replace(/^\?/, '&')}`}>✎ Bearbeiten</a>
         </div>
     );
 }

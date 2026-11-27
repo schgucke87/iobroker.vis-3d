@@ -1,11 +1,48 @@
 /**
- * Project persistence. For now the project lives in the browser's
- * localStorage, with JSON export/import. The ioBroker file storage
- * (writeFile('vis-3d.0', '<project>/project.json')) will plug in here.
+ * Project persistence.
+ * - With ioBroker: the adapter instance's file storage, vis-3d.0/main/project.json
+ *   (models in vis-3d.0/main/assets/), so every browser sees the same project.
+ * - Standalone: the browser's localStorage (models in IndexedDB).
+ * Plus JSON export/import with the models embedded.
  */
 import type { Project } from '../model/types';
 import { normalizeProject } from '../model/store';
-import { base64ToBuffer, bufferToBase64, getAssetData, putAssetData } from '../assets/assetStore';
+import { base64ToBuffer, bufferToBase64, getAssetData, putAssetData, setAssetFiles } from '../assets/assetStore';
+import type { FileStore } from '../iobroker/backend';
+
+const PROJECT_FILE = 'main/project.json';
+let files: FileStore | null = null;
+
+/** Switches project and asset storage to ioBroker files (null = browser storage). */
+export function useFileStore(f: FileStore | null) {
+    files = f;
+    setAssetFiles(f);
+}
+
+export const storageLabel = () => (files ? 'ioBroker (vis-3d.0/main)' : 'Browser');
+
+function valid(p: Project | null | undefined): p is Project {
+    return !!p && p.version === 1 && Array.isArray(p.floors) && p.floors.length > 0;
+}
+
+export async function loadProject(): Promise<Project | null> {
+    if (files) {
+        const text = await files.readText(PROJECT_FILE);
+        if (!text) return null;
+        try {
+            const p = JSON.parse(text) as Project;
+            return valid(p) ? normalizeProject(p) : null;
+        } catch {
+            return null;
+        }
+    }
+    return loadLocal();
+}
+
+export async function saveProject(p: Project): Promise<void> {
+    if (files) await files.writeText(PROJECT_FILE, JSON.stringify(p));
+    else saveLocal(p);
+}
 
 /** Project file format: the project plus the imported models embedded as base64 GLB. */
 interface ProjectFile extends Project {
@@ -19,7 +56,7 @@ export function loadLocal(): Project | null {
         const raw = localStorage.getItem(KEY);
         if (!raw) return null;
         const p = JSON.parse(raw) as Project;
-        return p && p.version === 1 && Array.isArray(p.floors) && p.floors.length ? normalizeProject(p) : null;
+        return valid(p) ? normalizeProject(p) : null;
     } catch {
         return null;
     }

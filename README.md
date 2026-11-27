@@ -2,7 +2,29 @@
 
 3D-Visualisierung für ioBroker: Gebäude direkt im Browser mit einem Wand-Editor aufbauen (oder einen Grundriss nachzeichnen), Stockwerke in 3D erkunden und später Objekte mit Datenpunkten verknüpfen.
 
-> **Status:** frühe Entwicklungsphase. Der Wand-Editor und die 3D-Navigation laufen als eigenständige Web-App; die ioBroker-Anbindung folgt.
+> **Status:** frühe Entwicklungsphase – noch nicht im ioBroker-Repository, Installation direkt von GitHub (siehe unten).
+
+## Installation in ioBroker
+
+Voraussetzung: der **web**-Adapter ist installiert (vis-3d wird von ihm unter `/vis-3d/` ausgeliefert).
+
+Auf dem ioBroker-Rechner (z. B. per SSH):
+
+```bash
+cd /opt/iobroker
+npm install https://github.com/schgucke87/iobroker.vis-3d
+iobroker add vis-3d
+iobroker upload vis-3d
+```
+
+Beim `npm install` wird das Frontend gebaut (dauert auf einem Raspberry Pi ein paar Minuten). Danach:
+
+- Ansicht: `http://<ioBroker-IP>:8082/vis-3d/index.html`
+- Editor: `http://<ioBroker-IP>:8082/vis-3d/index.html?edit=1`
+
+Das Projekt und importierte Modelle werden im ioBroker-Dateisystem unter `vis-3d.0/main/` gespeichert – alle Browser und Tablets sehen denselben Stand.
+
+Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkten und speichert im Browser.
 
 ## Funktionen (aktueller Stand)
 
@@ -27,6 +49,18 @@
 - Verschieben/Drehen in 2D (Ziehen, R) und 3D (Gizmo), Größe, Höhe, Duplizieren (Strg+D)
 - Projekt-Export enthält die importierten Modelle
 
+**ioBroker-Anbindung**
+- Verbindung über den web-Adapter (Websocket), Live-Werte per Abo nur für die verwendeten Datenpunkte
+- Datenpunkt-Browser mit Suche (Name, ID, Rolle), Filter nach Raum (`enum.rooms`) und Rolle, Live-Werten
+- **Verhalten** an jedem Objekt, auch an importierten Modellen:
+  - *Leuchten*: echte Lichtquelle + leuchtende Teile, Schalter oder Dimmer
+  - *Färben*: Farbe zwischen zwei Werten (z. B. Heizkörper nach Temperatur)
+  - *Sichtbarkeit*, *Bewegen/Drehen* (z. B. Garagentor), *Wert anzeigen*
+  - *Klick-Aktion*: in der Ansicht antippen → umschalten, Wert setzen oder erhöhen
+- Tür- und Fensterkontakte: Fenster öffnen sich bzw. kippen sichtbar (inkl. Drehgriff-Sensoren 0/1/2), Türen schwingen auf
+- Raumtemperatur und Luftfeuchte am Raum-Label, Heatmap-Ansicht
+- Projekt und Modelle im ioBroker-Dateisystem (`vis-3d.0/main/`)
+
 **3D-Ansicht**
 - Gesamtes Gebäude → Stockwerk → Raum: Kamera fliegt jeweils weich auf das Ziel, obere Stockwerke werden ausgeblendet
 - Explosionsansicht (Stockwerke auseinandergezogen)
@@ -37,12 +71,15 @@
 
 ```bash
 npm install
-npm run dev        # Dev-Server, dann http://localhost:5173/?edit=1
+npm run dev        # Dev-Server, dann http://localhost:5173/?edit=1 (Demo-Daten)
+                   # gegen ein echtes ioBroker: http://localhost:5173/?edit=1&host=192.168.1.10:8082
 npm test           # Geometrie-Tests (Raumerkennung, Gehrungen, Editier-Operationen)
 npm run build      # baut nach www/ (wird vom ioBroker web-Adapter unter /vis-3d/ ausgeliefert)
 ```
 
-Das Projekt wird vorerst im `localStorage` des Browsers gespeichert, importierte Modelle in der IndexedDB. Als JSON exportiert, enthält die Datei auch die Modelle.
+Ohne installierten Adapter (Demo oder `?host=` gegen ein ioBroker ohne vis-3d) wird im Browser gespeichert (`localStorage`, Modelle in der IndexedDB). Als JSON exportiert, enthält die Datei auch die Modelle.
+
+URL-Parameter: `edit` (Editor), `demo` (Demo-Daten erzwingen), `host=IP:Port` (ioBroker web-Adapter auf anderem Rechner), `debug` (Stores in der Browser-Konsole unter `window.__vis3d`).
 
 ### Tastenkürzel
 
@@ -69,7 +106,8 @@ src-www/src/
   view3d/     react-three-fiber Szene, Stockwerke, Kameranavigation
   ui/         Panels (Stockwerke, Eigenschaften)
   assets/     eingebaute Modelle, Import (Loader, Normalisierung, GLB-Export, Vorschaubilder), Asset-Speicher (IndexedDB)
-  storage/    Persistenz (localStorage, später ioBroker-Dateisystem)
+  iobroker/   Backend-Schnittstelle, Websocket-Verbindung (socket-client), Demo-Datenpunkte, Live-Werte
+  storage/    Persistenz (ioBroker-Dateisystem bzw. Browser)
 ```
 
 Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, Höhe und Öffnungen). Alle Geometrie – Gehrungen, Raumpolygone, 3D-Meshes – wird daraus abgeleitet.
@@ -80,8 +118,10 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] Stockwerke, 3D-Navigation (Gebäude → Stockwerk → Raum), Explosionsansicht
 - [x] Modell-Import (GLB/glTF, OBJ, FBX, STL) mit Bibliothek, Vorschaubildern und Platzieren auf Boden/Wand/Decke
 - [ ] Modell-Kompression (Draco/Meshopt) und Textur-Verkleinerung beim Import
-- [ ] Verhalten an Objekten (Leuchten, Bewegen, Färben, Sichtbarkeit, Klick-Aktion, Label) mit Datenpunkt-Bindung
-- [ ] ioBroker-Anbindung: socket-client, Speichern im ioBroker-Dateisystem, SelectID-Dialog
+- [x] Verhalten an Objekten (Leuchten, Bewegen, Färben, Sichtbarkeit, Klick-Aktion, Label) mit Datenpunkt-Bindung
+- [x] ioBroker-Anbindung: Websocket, Datenpunkt-Browser, Speichern im ioBroker-Dateisystem
+- [ ] Anmeldung/Rechte, wenn der web-Adapter Authentifizierung verlangt (ungetestet)
+- [ ] Ansicht lädt Projektänderungen aus dem Editor automatisch nach
 - [ ] Automatische Vorschläge über `enum.rooms` + type-detector
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht
 

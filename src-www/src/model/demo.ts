@@ -1,4 +1,5 @@
-import type { Floor, Project, Vec2 } from './types';
+import type { Behavior, Floor, Project, Vec2 } from './types';
+import { newBehavior } from './behaviors';
 import * as ops from './ops';
 import { newFloor } from './store';
 import { projectOnSegment } from '../geometry/vec';
@@ -15,23 +16,39 @@ function poly(f: Floor, pts: Vec2[], d = OUTER) {
     for (let i = 0; i < pts.length; i++) wall(f, pts[i], pts[(i + 1) % pts.length], d);
 }
 
+/** Whether to wire the demo house to the simulated demo.0.* datapoints. */
+let bind = false;
+const dp = (id: string) => (bind ? `demo.0.${id}` : undefined);
+
 /** Places an opening on the wall that passes through point p. */
-function opening(f: Floor, type: 'door' | 'window', p: Vec2, width?: number) {
+function opening(f: Floor, type: 'door' | 'window', p: Vec2, width?: number, contact?: string) {
     for (const w of Object.values(f.walls)) {
         const a = f.nodes[w.a];
         const b = f.nodes[w.b];
         const pr = projectOnSegment(p, [a.x, a.y], [b.x, b.y]);
         if (pr.distance < 1e-3) {
             const l = Math.hypot(b.x - a.x, b.y - a.y);
-            ops.addOpening(f, w.id, { ...ops.OPENING_PRESETS[type], ...(width ? { width } : {}), offset: pr.t * l });
+            ops.addOpening(f, w.id, {
+                ...ops.OPENING_PRESETS[type],
+                ...(width ? { width } : {}),
+                offset: pr.t * l,
+                ...(contact && dp(contact) ? { stateId: dp(contact) } : {}),
+            });
             return;
         }
     }
 }
 
-function room(f: Floor, name: string, anchor: Vec2, enumId?: string) {
+function room(f: Floor, name: string, anchor: Vec2, enumId?: string, temperature?: string) {
     const id = ops.uid('r');
-    f.rooms[id] = { id, name, anchor, enumId };
+    f.rooms[id] = { id, name, anchor, enumId, ...(temperature && dp(temperature) ? { temperatureId: dp(temperature) } : {}) };
+}
+
+/** A light bound to a datapoint that also toggles on tap. */
+function lamp(state: string, extra: Partial<Extract<Behavior, { type: 'light' }>> = {}): Behavior[] {
+    const id = dp(state);
+    if (!id) return [];
+    return [{ ...(newBehavior('light', id) as Extract<Behavior, { type: 'light' }>), ...extra }, newBehavior('action', id)];
 }
 
 const N = Math.PI; // facing north (-y)
@@ -40,14 +57,29 @@ const W = -Math.PI / 2; // facing west (-x)
 const S = 0; // facing south (+y)
 
 /** Places a built-in asset; ceiling objects hang from the ceiling. */
-function put(f: Floor, asset: string, x: number, y: number, rotation = S, elevation?: number) {
+function put(f: Floor, asset: string, x: number, y: number, rotation = S, elevation?: number, behaviors: Behavior[] = []) {
     const meta = builtinAssets().find(a => a.id === `builtin:${asset}`)!;
     const id = ops.uid('o');
     const elev = elevation ?? (meta.mount === 'ceiling' ? f.height - meta.size[1] : 0);
-    f.objects[id] = { id, assetId: meta.id, name: meta.name, x, y, elevation: elev, rotation, scale: [1, 1, 1] };
+    f.objects[id] = {
+        id,
+        assetId: meta.id,
+        name: meta.name,
+        x,
+        y,
+        elevation: elev,
+        rotation,
+        scale: [1, 1, 1],
+        ...(behaviors.length ? { behaviors } : {}),
+    };
 }
 
-export function demoProject(): Project {
+/**
+ * The demo house. With `bindings`, lights, the TV, some windows/doors and
+ * the room temperatures are wired to the simulated demo datapoints.
+ */
+export function demoProject(opts: { bindings?: boolean } = {}): Project {
+    bind = !!opts.bindings;
     const eg = newFloor('Erdgeschoss');
     eg.height = 2.6;
     poly(eg, [[0, 0], [11, 0], [11, 9], [0, 9]]);
@@ -55,10 +87,10 @@ export function demoProject(): Project {
     wall(eg, [0, 5], [6, 5]);
     wall(eg, [6, 4], [11, 4]);
     wall(eg, [8.5, 4], [8.5, 9]);
-    opening(eg, 'door', [3, 9], 1.01);
+    opening(eg, 'door', [3, 9], 1.01, 'tuer.haustuer');
     opening(eg, 'window', [3, 0], 2.0);
-    opening(eg, 'window', [0, 2.5], 1.5);
-    opening(eg, 'window', [8.5, 0], 1.76);
+    opening(eg, 'window', [0, 2.5], 1.5, 'fenster.wohnzimmer_west');
+    opening(eg, 'window', [8.5, 0], 1.76, 'fenster.kueche');
     opening(eg, 'window', [11, 2], 1.26);
     opening(eg, 'window', [11, 6.5], 0.76);
     opening(eg, 'window', [0, 7], 1.26);
@@ -67,19 +99,23 @@ export function demoProject(): Project {
     opening(eg, 'door', [7.2, 4]);
     opening(eg, 'door', [9.7, 4]);
     opening(eg, 'door', [6, 7]);
-    room(eg, 'Wohnzimmer', [3, 2.5], 'enum.rooms.living_room');
-    room(eg, 'Flur', [3, 7], 'enum.rooms.corridor');
-    room(eg, 'Küche', [8.5, 2], 'enum.rooms.kitchen');
-    room(eg, 'Gäste-WC', [7.2, 6.5], 'enum.rooms.wc');
-    room(eg, 'Hauswirtschaft', [9.7, 6.5]);
+    room(eg, 'Wohnzimmer', [3, 2.5], 'enum.rooms.living_room', 'temperatur.wohnzimmer');
+    room(eg, 'Flur', [3, 7], 'enum.rooms.corridor', 'temperatur.flur');
+    room(eg, 'Küche', [8.5, 2], 'enum.rooms.kitchen', 'temperatur.kueche');
+    room(eg, 'Gäste-WC', [7.2, 6.5], 'enum.rooms.wc', 'temperatur.gaeste_wc');
+    room(eg, 'Hauswirtschaft', [9.7, 6.5], undefined, 'temperatur.hauswirtschaft');
     put(eg, 'sofa', 2.1, 3.7, E);
     put(eg, 'coffeeTable', 3.4, 3.7, E);
     put(eg, 'armchair', 3.4, 2.2, S);
-    put(eg, 'floorLamp', 0.6, 4.5);
+    put(eg, 'floorLamp', 0.6, 4.5, S, undefined, lamp('licht.stehlampe', { color: '#ffc477' }));
     put(eg, 'plant', 5.4, 0.6);
     put(eg, 'sideboard', 5.72, 3.7, W);
-    put(eg, 'tv', 5.92, 3.7, W, 0.95);
-    put(eg, 'ceilingLamp', 3, 2.5);
+    const tv = dp('tv.power');
+    put(eg, 'tv', 5.92, 3.7, W, 0.95, tv ? [
+        { ...(newBehavior('color', tv) as Extract<Behavior, { type: 'color' }>), min: 0, max: 1, colorMin: '#1a1a1a', colorMax: '#3d7be0' },
+        newBehavior('action', tv),
+    ] : []);
+    put(eg, 'ceilingLamp', 3, 2.5, S, undefined, lamp('licht.wohnzimmer_decke_level'));
     put(eg, 'kitchen', 7.5, 0.49, S);
     put(eg, 'fridge', 9.25, 0.51, S);
     put(eg, 'diningTable', 8.5, 2.65);
@@ -87,7 +123,7 @@ export function demoProject(): Project {
     put(eg, 'chair', 8.9, 1.95, S);
     put(eg, 'chair', 8.1, 3.35, N);
     put(eg, 'chair', 8.9, 3.35, N);
-    put(eg, 'ceilingLamp', 8.5, 2.65);
+    put(eg, 'ceilingLamp', 8.5, 2.65, S, undefined, lamp('licht.kueche'));
 
     const og = newFloor('Obergeschoss');
     og.height = 2.5;
@@ -97,18 +133,18 @@ export function demoProject(): Project {
     wall(og, [5, 0], [5, 9], di);
     wall(og, [5, 4.5], [11, 4.5], di);
     wall(og, [0, 6], [5, 6], di);
-    opening(og, 'window', [2.5, 0], 1.5);
+    opening(og, 'window', [2.5, 0], 1.5, 'fenster.schlafzimmer');
     opening(og, 'window', [8, 0], 1.5);
     opening(og, 'window', [11, 6.7], 1.26);
     opening(og, 'window', [2.5, 9], 1.0);
     opening(og, 'window', [0, 3], 1.26);
     opening(og, 'door', [5, 3]);
     opening(og, 'door', [8, 4.5]);
-    opening(og, 'door', [2.5, 6]);
-    room(og, 'Schlafzimmer', [2.5, 3], 'enum.rooms.sleeping_room');
-    room(og, 'Kinderzimmer', [8, 2.2], 'enum.rooms.nursery');
-    room(og, 'Bad', [2.5, 7.5], 'enum.rooms.bathroom');
-    room(og, 'Arbeitszimmer', [8, 6.7], 'enum.rooms.office');
+    opening(og, 'door', [2.5, 6], undefined, 'tuer.bad');
+    room(og, 'Schlafzimmer', [2.5, 3], 'enum.rooms.sleeping_room', 'temperatur.schlafzimmer');
+    room(og, 'Kinderzimmer', [8, 2.2], 'enum.rooms.nursery', 'temperatur.kinderzimmer');
+    room(og, 'Bad', [2.5, 7.5], 'enum.rooms.bathroom', 'temperatur.bad');
+    room(og, 'Arbeitszimmer', [8, 6.7], 'enum.rooms.office', 'temperatur.arbeitszimmer');
     put(og, 'bed', 2.5, 1.24, S);
     put(og, 'wardrobe', 4.64, 4.6, W);
     put(og, 'plant', 0.5, 5.4);
@@ -116,7 +152,7 @@ export function demoProject(): Project {
     put(og, 'chair', 9.85, 8.0, E);
     put(og, 'sideboard', 6.0, 8.6, N);
     put(og, 'bed', 9.5, 1.9, W);
-    put(og, 'ceilingLamp', 2.5, 3);
+    put(og, 'ceilingLamp', 2.5, 3, S, undefined, lamp('licht.schlafzimmer'));
 
     return { version: 1, name: 'Beispielhaus', floors: [eg, og], assets: {} };
 }

@@ -32,6 +32,9 @@ export interface EditorState {
     /** 3D navigation: null shows the whole building. */
     focusFloorId: string | null;
     explode: boolean;
+    /** Colour rooms by temperature in 3D. */
+    heatmap: boolean;
+    setHeatmap(v: boolean): void;
     settings: Settings;
     /** Asset being placed with the 'place' tool. */
     placeAssetId: string | null;
@@ -122,6 +125,8 @@ export const useEditor = create<EditorState>()(
                 view: 'split',
                 focusFloorId: null,
                 explode: false,
+                heatmap: false,
+                setHeatmap: heatmap => set({ heatmap }),
                 settings: { grid: 0.05, snap: true, wallThickness: 0.24 },
                 placeAssetId: null,
                 placeRotation: 0,

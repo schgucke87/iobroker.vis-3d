@@ -28,6 +28,10 @@ export interface Opening {
     height: number;
     /** Height of the bottom edge above the floor (0 for doors). */
     sill: number;
+    /** Contact datapoint: truthy = open (numeric 1 = tilted, 2 = open for rotary handles). */
+    stateId?: string;
+    /** Contact reports `true` when closed. */
+    invert?: boolean;
 }
 
 export interface Wall {
@@ -51,6 +55,9 @@ export interface RoomMeta {
     /** ioBroker room enum, e.g. "enum.rooms.living_room". */
     enumId?: string;
     floorColor?: string;
+    /** Temperature datapoint: shown on the room label and in the heat map. */
+    temperatureId?: string;
+    humidityId?: string;
 }
 
 export interface BackgroundImage {
@@ -88,6 +95,41 @@ export interface AssetMeta {
     bytes?: number;
 }
 
+/**
+ * Behaviours connect an object to ioBroker datapoints. A value is
+ * normalised to 0…1 (booleans → 0/1, numbers → (v − min) / (max − min)).
+ */
+export type Behavior =
+    | {
+          id: string;
+          type: 'light';
+          stateId: string;
+          color: string;
+          /** Light intensity (candela) at full brightness. */
+          intensity: number;
+          range: number;
+          /** Value meaning "fully on" for dimmers (100 for 0…100 %). Booleans are on/off. */
+          max: number;
+      }
+    | { id: string; type: 'color'; stateId: string; min: number; max: number; colorMin: string; colorMax: string }
+    | { id: string; type: 'visibility'; stateId: string; invert: boolean }
+    | {
+          id: string;
+          type: 'transform';
+          stateId: string;
+          mode: 'rotate' | 'move';
+          axis: 'x' | 'y' | 'z';
+          min: number;
+          max: number;
+          /** Degrees for rotate, metres for move. */
+          from: number;
+          to: number;
+      }
+    | { id: string; type: 'label'; stateId: string; unit: string; decimals: number; prefix: string }
+    | { id: string; type: 'action'; stateId: string; mode: 'toggle' | 'set' | 'increment'; value: string };
+
+export type BehaviorType = Behavior['type'];
+
 /** A placed instance of an asset on a floor. */
 export interface SceneObject {
     id: string;
@@ -101,6 +143,7 @@ export interface SceneObject {
     /** Rotation about the vertical axis in radians (counter-clockwise in plan view). */
     rotation: number;
     scale: [number, number, number];
+    behaviors?: Behavior[];
 }
 
 export interface Floor {
