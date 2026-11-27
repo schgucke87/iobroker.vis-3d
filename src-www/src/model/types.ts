@@ -32,6 +32,12 @@ export interface Opening {
     stateId?: string;
     /** Contact reports `true` when closed. */
     invert?: boolean;
+    /** Roller shutter position datapoint (ioBroker convention: 0 = closed, 100 = open). */
+    blindId?: string;
+    /** Shutter reports 100 = closed. */
+    blindInvert?: boolean;
+    /** Value for "fully open" (default 100). */
+    blindMax?: number;
 }
 
 export interface Wall {

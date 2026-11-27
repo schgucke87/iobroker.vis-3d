@@ -354,3 +354,24 @@ button.small { padding: 2px 8px; font-size: 12px; }
     font-variant-numeric: tabular-nums;
 }
 .room-label-3d .room-values { font-weight: 500; color: #4b5260; font-variant-numeric: tabular-nums; }
+
+/* ---------- suggestions ---------- */
+.suggestions { width: 820px; display: flex; flex-direction: column; height: min(720px, calc(100vh - 32px)); }
+.suggestions header { gap: 10px; }
+.suggestions header .muted { flex: 1; font-size: 12px; }
+.suggestions-body { flex: 1; overflow: auto; padding: 6px 14px 12px; }
+.suggestions-body h3 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #3b3f47; }
+.suggestions-body h3 .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.suggestions .unmatched { background: #fff8e6; border: 1px solid #f1dfa8; border-radius: 8px; padding: 2px 12px 10px; margin-top: 10px; }
+.suggestions .unmatched p { margin: 0 0 8px; font-size: 12px; }
+.suggestions .unmatched select { width: 300px; }
+.suggestion { display: grid; grid-template-columns: 20px 24px 1fr 300px; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid #f0f1f3; }
+.suggestion .icon { text-align: center; }
+.suggestion .name { font-weight: 500; }
+.suggestion .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggestion .how select { width: 100%; }
+.suggestion.disabled { opacity: 0.6; }
+.suggestions .empty { padding: 30px 10px; text-align: center; color: var(--muted); }
+.suggestions footer { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.suggestions footer .muted { flex: 1; font-size: 12px; }
+@media (max-width: 900px) { .suggestion { grid-template-columns: 20px 24px 1fr; } .suggestion .how { grid-column: 3; } }

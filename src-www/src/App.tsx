@@ -4,6 +4,7 @@ import { PlanEditor } from './editor2d/PlanEditor';
 import { Scene3D } from './view3d/Scene3D';
 import { FloorPanel, PropertiesPanel } from './ui/Panels';
 import { LibraryPanel } from './ui/Library';
+import { SuggestionsDialog } from './ui/Suggestions';
 import { exportProject, importProjectFile } from './storage/local';
 import { demoProject } from './model/demo';
 import { useConnection } from './iobroker/connect';
@@ -28,6 +29,7 @@ export function App({ edit }: { edit: boolean }) {
 }
 
 function EditorApp() {
+    const [suggest, setSuggest] = useState(false);
     const tool = useEditor(s => s.tool);
     const view = useEditor(s => s.view);
     const explode = useEditor(s => s.explode);
@@ -88,6 +90,11 @@ function EditorApp() {
                         Explosion
                     </button>
                 </div>
+                <div className="group">
+                    <button onClick={() => setSuggest(true)} title="Geräte aus den ioBroker-Räumen erkennen und verknüpfen">
+                        ✨ Vorschläge
+                    </button>
+                </div>
                 <div className="spacer" />
                 <StatusBadge />
                 <div className="group">
@@ -117,6 +124,7 @@ function EditorApp() {
             <aside className="right">
                 <PropertiesPanel />
             </aside>
+            {suggest && <SuggestionsDialog onClose={() => setSuggest(false)} />}
         </div>
     );
 }

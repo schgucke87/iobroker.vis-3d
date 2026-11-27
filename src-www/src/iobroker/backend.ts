@@ -4,6 +4,8 @@
  * datapoints (DemoBackend), so it can be developed and tried standalone.
  */
 
+import type { DetectionResult } from './devices';
+
 export type StateValue = string | number | boolean | null;
 
 export interface StateInfo {
@@ -51,6 +53,8 @@ export interface Backend {
     setState(id: string, val: StateValue): Promise<void>;
     listDatapoints(): Promise<DatapointInfo[]>;
     listRooms(): Promise<EnumInfo[]>;
+    /** Devices per room, detected with ioBroker's type-detector. */
+    detectDevices(): Promise<DetectionResult>;
     files: FileStore | null;
 }
 

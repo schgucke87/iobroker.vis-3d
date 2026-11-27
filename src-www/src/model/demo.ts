@@ -115,7 +115,7 @@ export function demoProject(opts: { bindings?: boolean } = {}): Project {
         { ...(newBehavior('color', tv) as Extract<Behavior, { type: 'color' }>), min: 0, max: 1, colorMin: '#1a1a1a', colorMax: '#3d7be0' },
         newBehavior('action', tv),
     ] : []);
-    put(eg, 'ceilingLamp', 3, 2.5, S, undefined, lamp('licht.wohnzimmer_decke_level'));
+    put(eg, 'ceilingLamp', 3, 2.5, S, undefined, lamp('licht.wohnzimmer.level'));
     put(eg, 'kitchen', 7.5, 0.49, S);
     put(eg, 'fridge', 9.25, 0.51, S);
     put(eg, 'diningTable', 8.5, 2.65);

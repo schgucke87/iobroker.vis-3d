@@ -44,6 +44,8 @@ export interface EditorState {
     setGizmo(g: 'translate' | 'rotate'): void;
 
     setProject(p: Project): void;
+    /** Replaces the project content (undoable), keeping view and active floor. */
+    replaceProject(p: Project): void;
     setTool(t: Tool): void;
     setView(v: ViewMode): void;
     select(s: Selection | null): void;
@@ -137,6 +139,7 @@ export const useEditor = create<EditorState>()(
                     const project = normalizeProject(p);
                     set({ project, activeFloorId: project.floors[0]?.id ?? '', selection: null, focusFloorId: null });
                 },
+                replaceProject: p => set({ project: p, selection: null }),
                 setTool: tool =>
                     set({
                         tool,

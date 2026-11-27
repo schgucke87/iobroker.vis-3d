@@ -59,6 +59,13 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
   - *Klick-Aktion*: in der Ansicht antippen → umschalten, Wert setzen oder erhöhen
 - Tür- und Fensterkontakte: Fenster öffnen sich bzw. kippen sichtbar (inkl. Drehgriff-Sensoren 0/1/2), Türen schwingen auf
 - Raumtemperatur und Luftfeuchte am Raum-Label, Heatmap-Ansicht
+- Rollläden an Fenstern (Panzer fährt entsprechend der Position herunter)
+- **✨ Vorschläge**: erkennt mit dem ioBroker type-detector die Geräte in den ioBroker-Räumen (`enum.rooms`) und schlägt vor,
+  was damit im 3D-Haus passieren soll – Fensterkontakte, Türkontakte und Rollläden an passende Fenster/Türen binden,
+  Temperatur/Luftfeuchte am Raum anzeigen, Lichter mit vorhandenen Lampen verbinden (Zuordnung über den Namen,
+  z. B. „Stehlampe“ ↔ Stehlampe, „Deckenlicht“ ↔ Deckenleuchte) oder neue Deckenleuchten platzieren.
+  Räume werden über die verknüpfte Raum-ID oder den Namen zugeordnet, übrige können im Dialog zugewiesen werden.
+  Alles mit einem Schritt rückgängig zu machen.
 - Projekt und Modelle im ioBroker-Dateisystem (`vis-3d.0/main/`)
 
 **3D-Ansicht**
@@ -122,7 +129,8 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] ioBroker-Anbindung: Websocket, Datenpunkt-Browser, Speichern im ioBroker-Dateisystem
 - [ ] Anmeldung/Rechte, wenn der web-Adapter Authentifizierung verlangt (ungetestet)
 - [ ] Ansicht lädt Projektänderungen aus dem Editor automatisch nach
-- [ ] Automatische Vorschläge über `enum.rooms` + type-detector
+- [x] Automatische Vorschläge über `enum.rooms` + type-detector
+- [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien, Farb-Lichter)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht
 
 ## Lizenz

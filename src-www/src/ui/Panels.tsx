@@ -109,6 +109,18 @@ export function PropertiesPanel() {
                             <span>Umkehren (wahr = geschlossen)</span>
                         </label>
                     )}
+                    {o.type === 'window' && (
+                        <>
+                            <h3>Rollladen</h3>
+                            <StateIdField label="Position (0 = zu, 100 = offen)" value={o.blindId} roleHint="level.blind" onChange={blindId => up({ blindId: blindId || undefined })} />
+                            {o.blindId && (
+                                <label className="field check">
+                                    <input type="checkbox" checked={!!o.blindInvert} onChange={e => up({ blindInvert: e.target.checked })} />
+                                    <span>Umkehren (100 = geschlossen)</span>
+                                </label>
+                            )}
+                        </>
+                    )}
                     <button className="danger" onClick={() => s().deleteSelection()}>Löschen</button>
                 </>
             );

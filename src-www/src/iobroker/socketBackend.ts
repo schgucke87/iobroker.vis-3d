@@ -1,6 +1,7 @@
 import { Connection } from '@iobroker/socket-client';
 import type { Backend, DatapointInfo, EnumInfo, FileStore, StateInfo, StateValue } from './backend';
 import { objectName } from './backend';
+import { detectDevicesInObjects, type DetectionResult } from './devices';
 
 /** Namespace of the adapter instance's file storage (meta object "vis-3d.0"). */
 export const FILE_NAMESPACE = 'vis-3d.0';
@@ -11,6 +12,7 @@ export class SocketBackend implements Backend {
     label: string;
     files: FileStore | null;
     private datapoints: Promise<DatapointInfo[]> | null = null;
+    private objects: Promise<AllObjects> | null = null;
 
     constructor(
         private conn: Connection,
@@ -64,13 +66,7 @@ export class SocketBackend implements Backend {
     listDatapoints(): Promise<DatapointInfo[]> {
         if (!this.datapoints) {
             this.datapoints = (async () => {
-                const [states, channels, devices, rooms, functions] = await Promise.all([
-                    this.conn.getObjectViewSystem('state', '', '香'),
-                    this.conn.getObjectViewSystem('channel', '', '香'),
-                    this.conn.getObjectViewSystem('device', '', '香'),
-                    this.conn.getEnums('rooms'),
-                    this.conn.getEnums('functions'),
-                ]);
+                const { states, channels, devices, rooms, functions } = await this.loadObjects();
                 const parentNames = { ...channels, ...devices } as Record<string, ioBroker.Object>;
                 const membership = (enums: Record<string, ioBroker.EnumObject>) => {
                     const map = new Map<string, string[]>();
@@ -120,6 +116,33 @@ export class SocketBackend implements Backend {
         return this.datapoints;
     }
 
+    /** States, channels, devices and the room/function enums (loaded once per session). */
+    private loadObjects(): Promise<AllObjects> {
+        if (!this.objects) {
+            const end = '\u9999'; // end of the id range
+            this.objects = Promise.all([
+                this.conn.getObjectViewSystem('state', '', end),
+                this.conn.getObjectViewSystem('channel', '', end),
+                this.conn.getObjectViewSystem('device', '', end),
+                this.conn.getEnums('rooms'),
+                this.conn.getEnums('functions'),
+            ]).then(([states, channels, devices, rooms, functions]) => ({
+                states: states as Record<string, ioBroker.Object>,
+                channels: channels as Record<string, ioBroker.Object>,
+                devices: devices as Record<string, ioBroker.Object>,
+                rooms,
+                functions,
+            }));
+            this.objects.catch(() => (this.objects = null));
+        }
+        return this.objects;
+    }
+
+    async detectDevices(): Promise<DetectionResult> {
+        const o = await this.loadObjects();
+        return detectDevicesInObjects({ ...o.states, ...o.channels, ...o.devices, ...o.rooms, ...o.functions });
+    }
+
     async listRooms(): Promise<EnumInfo[]> {
         const rooms = await this.conn.getEnums('rooms');
         return Object.values(rooms).map(e => ({
@@ -128,6 +151,14 @@ export class SocketBackend implements Backend {
             members: e.common?.members ?? [],
         }));
     }
+}
+
+interface AllObjects {
+    states: Record<string, ioBroker.Object>;
+    channels: Record<string, ioBroker.Object>;
+    devices: Record<string, ioBroker.Object>;
+    rooms: Record<string, ioBroker.EnumObject>;
+    functions: Record<string, ioBroker.EnumObject>;
 }
 
 class IoBrokerFiles implements FileStore {

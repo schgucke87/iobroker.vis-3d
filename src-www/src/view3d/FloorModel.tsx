@@ -7,7 +7,7 @@ import { computeWallGeometry, clampOpening, pointOnWall, type WallFrame } from '
 import { detectRooms } from '../geometry/rooms';
 import { buildPrism, buildWallGeometry, yawFor } from '../geometry/mesh';
 import { useStateValue } from '../iobroker/connect';
-import { formatValue } from '../iobroker/backend';
+import { formatValue, normalizeValue } from '../iobroker/backend';
 import { contactLevel, temperatureColor } from '../model/behaviors';
 
 export interface FloorModelProps {
@@ -81,6 +81,7 @@ export function FloorModel(props: FloorModelProps) {
             glassOpen: new THREE.MeshPhysicalMaterial({ color: '#ff8a4c', roughness: 0.2, transparent: true, opacity: 0.6 }),
             glassTilted: new THREE.MeshPhysicalMaterial({ color: '#ffcf4a', roughness: 0.2, transparent: true, opacity: 0.6 }),
             frameOpen: std('#ff8a4c', { roughness: 0.5 }),
+            shutter: std('#7b818c', { roughness: 0.7 }),
             roomColors: new Map<string, THREE.MeshStandardMaterial>(),
         };
         return m;
@@ -116,7 +117,7 @@ export function FloorModel(props: FloorModelProps) {
         g.position.y = elevation + c.offset;
         g.visible = c.opacity > 0.01;
         const all: THREE.Material[] = [
-            mats.wall, mats.wallSelected, mats.floor, mats.floorHover, mats.frame, mats.leaf, mats.frameOpen, ...mats.roomColors.values(),
+            mats.wall, mats.wallSelected, mats.floor, mats.floorHover, mats.frame, mats.leaf, mats.frameOpen, mats.shutter, ...mats.roomColors.values(),
         ];
         for (const m of all) {
             const transparent = c.opacity < 0.999;
@@ -241,6 +242,7 @@ interface OpeningMats {
     glassOpen: THREE.Material;
     glassTilted: THREE.Material;
     leaf: THREE.Material;
+    shutter: THREE.Material;
 }
 
 function OpeningModel({ frame, opening, mats }: { frame: WallFrame; opening: Opening; mats: OpeningMats }) {
@@ -262,6 +264,16 @@ function OpeningModel({ frame, opening, mats }: { frame: WallFrame; opening: Ope
     const level = opening.stateId ? contactLevel(state, opening.invert) : 0;
     const frameMat = level > 0 ? mats.frameOpen : mats.frame;
     const sw = w - 2 * p; // sash / leaf width
+    const blindVal = useStateValue(opening.blindId);
+    const blindOpen = opening.blindId
+        ? (() => {
+              const v = normalizeValue(blindVal, 0, opening.blindMax || 100);
+              return opening.blindInvert ? 1 - v : v;
+          })()
+        : 1;
+    // the shutter comes down from the lintel on the wall's right side
+    const shutterH = (h - p) * (1 - blindOpen);
+    const shutterZ = -Math.min(frame.wall.thickness / 2 - 0.01, 0.08);
     return (
         <group position={[x, o.sill, z]} rotation={[0, yaw, 0]}>
             {bars.map(([cx, cy, sx, sy], i) => (
@@ -289,7 +301,13 @@ function OpeningModel({ frame, opening, mats }: { frame: WallFrame; opening: Ope
                         <boxGeometry args={[sw, h - 2 * p, 0.01]} />
                     </mesh>
                 )
-            ) : (
+            ) : null}
+            {o.type === 'window' && shutterH > 0.005 && (
+                <mesh position={[0, h - p - shutterH / 2, shutterZ]} material={mats.shutter} castShadow>
+                    <boxGeometry args={[w, shutterH, 0.025]} />
+                </mesh>
+            )}
+            {o.type === 'door' && (
                 // door leaf hinged at the start side, swinging to the wall's left side
                 <group position={[-sw / 2, 0, 0]} rotation={[0, -THREE.MathUtils.degToRad(80 * level), 0]}>
                     <mesh position={[sw / 2, (h - p) / 2, 0]} material={mats.leaf} castShadow>

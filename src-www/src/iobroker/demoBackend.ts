@@ -1,4 +1,5 @@
 import type { Backend, DatapointInfo, EnumInfo, StateInfo, StateValue } from './backend';
+import { detectDevicesInObjects, type DetectionResult } from './devices';
 
 /**
  * Simulated datapoints for trying the app without ioBroker. They match the
@@ -17,6 +18,8 @@ interface DemoPoint {
     val: StateValue;
     min?: number;
     max?: number;
+    /** Name of the channel the datapoint belongs to (its parent id); the channel is the room member then. */
+    channel?: string;
 }
 
 const P = (
@@ -31,8 +34,14 @@ const P = (
 ): DemoPoint => ({ id: `demo.0.${id}`, name, role, type, val, room, fn, write: role.startsWith('switch') || role.startsWith('level'), ...extra });
 
 const POINTS: DemoPoint[] = [
-    P('licht.wohnzimmer_decke', 'Wohnzimmer Deckenlicht', 'switch.light', 'boolean', true, 'Wohnzimmer', 'Licht'),
-    P('licht.wohnzimmer_decke_level', 'Wohnzimmer Deckenlicht Helligkeit', 'level.dimmer', 'number', 80, 'Wohnzimmer', 'Licht', { unit: '%', min: 0, max: 100 }),
+    // one dimmable light = one channel with an on/off and a level datapoint, like real devices
+    P('licht.wohnzimmer.on', 'Wohnzimmer Deckenlicht an', 'switch.light', 'boolean', true, 'Wohnzimmer', 'Licht', { channel: 'Wohnzimmer Deckenlicht' }),
+    P('licht.wohnzimmer.level', 'Wohnzimmer Deckenlicht Helligkeit', 'level.dimmer', 'number', 80, 'Wohnzimmer', 'Licht', {
+        unit: '%',
+        min: 0,
+        max: 100,
+        channel: 'Wohnzimmer Deckenlicht',
+    }),
     P('licht.stehlampe', 'Stehlampe', 'switch.light', 'boolean', false, 'Wohnzimmer', 'Licht'),
     P('licht.kueche', 'Küche Deckenlicht', 'switch.light', 'boolean', true, 'Küche', 'Licht'),
     P('licht.schlafzimmer', 'Schlafzimmer Deckenlicht', 'switch.light', 'boolean', false, 'Schlafzimmer', 'Licht'),
@@ -52,6 +61,16 @@ const POINTS: DemoPoint[] = [
     P('tuer.haustuer', 'Haustür', 'sensor.door', 'boolean', false, 'Flur', 'Sicherheit', { write: true }),
     P('tuer.bad', 'Badtür', 'sensor.door', 'boolean', true, 'Bad', 'Sicherheit', { write: true }),
     P('anwesenheit.auto', 'Auto zu Hause', 'indicator', 'boolean', true, 'Flur', 'Anwesenheit', { write: true }),
+    // not wired in the demo house yet: these show up as suggestions
+    P('licht.flur', 'Flur Deckenlicht', 'switch.light', 'boolean', false, 'Flur', 'Licht'),
+    P('licht.kinderzimmer', 'Kinderzimmer Deckenlicht', 'switch.light', 'boolean', true, 'Kinderzimmer', 'Licht'),
+    P('licht.esstisch', 'Esstischlampe', 'level.dimmer', 'number', 60, 'Küche', 'Licht', { unit: '%', min: 0, max: 100 }),
+    P('rollladen.wohnzimmer', 'Rollladen Wohnzimmer', 'level.blind', 'number', 40, 'Wohnzimmer', 'Rollladen', { unit: '%', min: 0, max: 100 }),
+    P('rollladen.schlafzimmer', 'Rollladen Schlafzimmer', 'level.blind', 'number', 0, 'Schlafzimmer', 'Rollladen', { unit: '%', min: 0, max: 100 }),
+    P('luftfeuchte.bad', 'Luftfeuchte Bad', 'value.humidity', 'number', 63, 'Bad', 'Heizung', { unit: '%', write: false }),
+    P('fenster.kinderzimmer', 'Fenster Kinderzimmer', 'sensor.window', 'boolean', false, 'Kinderzimmer', 'Sicherheit', { write: true }),
+    P('fenster.arbeitszimmer', 'Drehgriff Arbeitszimmer', 'value.window', 'number', 2, 'Arbeitszimmer', 'Sicherheit', { write: true, min: 0, max: 2 }),
+    P('bewegung.flur', 'Bewegungsmelder Flur', 'sensor.motion', 'boolean', false, 'Flur', 'Sicherheit'),
 ];
 
 export class DemoBackend implements Backend {
@@ -116,9 +135,49 @@ export class DemoBackend implements Backend {
         }));
     }
 
+    /** The demo datapoints as ioBroker objects, run through the real type-detector. */
+    async detectDevices(): Promise<DetectionResult> {
+        const objects: Record<string, ioBroker.Object> = {};
+        const enums = new Map<string, { name: string; members: string[] }>();
+        const addTo = (id: string, name: string, member: string) => {
+            const e = enums.get(id) ?? { name, members: [] };
+            e.members.push(member);
+            enums.set(id, e);
+        };
+        for (const p of POINTS) {
+            objects[p.id] = {
+                _id: p.id,
+                type: 'state',
+                common: { name: p.name, role: p.role, type: p.type, unit: p.unit, min: p.min, max: p.max, read: true, write: p.write },
+                native: {},
+            } as ioBroker.StateObject;
+            let member = p.id;
+            if (p.channel) {
+                member = p.id.split('.').slice(0, -1).join('.');
+                if (objects[member]) continue; // channel already in the enums
+                objects[member] = { _id: member, type: 'channel', common: { name: p.channel }, native: {} } as ioBroker.ChannelObject;
+            }
+            addTo(`enum.rooms.${slug(p.room)}`, p.room, member);
+            addTo(`enum.functions.${slug(p.fn)}`, p.fn, member);
+        }
+        for (const [id, e] of enums) {
+            objects[id] = { _id: id, type: 'enum', common: { name: e.name, members: e.members }, native: {} } as ioBroker.EnumObject;
+        }
+        return detectDevicesInObjects(objects);
+    }
+
     async listRooms(): Promise<EnumInfo[]> {
         const rooms = new Map<string, string[]>();
         for (const p of POINTS) rooms.set(p.room, [...(rooms.get(p.room) ?? []), p.id]);
-        return [...rooms].map(([name, members]) => ({ id: `enum.rooms.${name.toLowerCase()}`, name, members }));
+        return [...rooms].map(([name, members]) => ({ id: `enum.rooms.${slug(name)}`, name, members }));
     }
 }
+
+const slug = (s: string) =>
+    s
+        .toLowerCase()
+        .replace(/ä/g, 'ae')
+        .replace(/ö/g, 'oe')
+        .replace(/ü/g, 'ue')
+        .replace(/ß/g, 'ss')
+        .replace(/[^a-z0-9]+/g, '_');

@@ -123,7 +123,12 @@ export function projectStateIds(p: Project): Set<string> {
     const ids = new Set<string>();
     for (const f of p.floors) {
         for (const o of Object.values(f.objects)) for (const b of o.behaviors ?? []) if (b.stateId) ids.add(b.stateId);
-        for (const w of Object.values(f.walls)) for (const o of w.openings) if (o.stateId) ids.add(o.stateId);
+        for (const w of Object.values(f.walls)) {
+            for (const o of w.openings) {
+                if (o.stateId) ids.add(o.stateId);
+                if (o.blindId) ids.add(o.blindId);
+            }
+        }
         for (const r of Object.values(f.rooms)) {
             if (r.temperatureId) ids.add(r.temperatureId);
             if (r.humidityId) ids.add(r.humidityId);
