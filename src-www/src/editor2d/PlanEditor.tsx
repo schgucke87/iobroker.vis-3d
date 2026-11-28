@@ -1,6 +1,6 @@
 import { applyProposals, discardProposals, toggleProposal, useWallProposals, type WallProposal } from './wallProposals';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DetectedRoom, Floor, Vec2 } from '../model/types';
+import type { DetectedRoom, Floor, Opening, Vec2 } from '../model/types';
 import { activeFloor, findAsset, useEditor } from '../model/store';
 import { computePlacement, objectAxes, objectFootprint } from '../geometry/placement';
 import { roofCreases, roofFrame, roofOutline } from '../geometry/roof';
@@ -600,7 +600,7 @@ export function PlanEditor() {
                     fr.wall.openings.map(raw => {
                         const o = clampOpening(raw, fr);
                         const selected = sel?.kind === 'opening' && sel.id === o.id;
-                        return <OpeningSymbol key={o.id} frame={fr} u={o.offset} width={o.width} type={o.type} selected={selected} mpp={mpp} />;
+                        return <OpeningSymbol key={o.id} frame={fr} u={o.offset} width={o.width} type={o.type} opening={o} selected={selected} mpp={mpp} />;
                     }),
                 )}
 
@@ -809,12 +809,32 @@ export function PlanEditor() {
     );
 }
 
-function OpeningSymbol(props: { frame: WallFrame; u: number; width: number; type: 'door' | 'window'; selected?: boolean; preview?: boolean; mpp: number }) {
+function OpeningSymbol(props: {
+    frame: WallFrame;
+    u: number;
+    width: number;
+    type: 'door' | 'window';
+    opening?: Pick<Opening, 'leaves' | 'hingeEnd' | 'swingRight'>;
+    selected?: boolean;
+    preview?: boolean;
+    mpp: number;
+}) {
     const { frame: fr, u, width, type } = props;
     const t = fr.wall.thickness;
     const c = pointOnWall(fr, u);
     const angle = (Math.atan2(fr.dir[1], fr.dir[0]) * 180) / Math.PI;
     const cls = `opening ${props.selected ? 'selected' : ''} ${props.preview ? 'preview' : ''}`;
+    const double = props.opening?.leaves === 2;
+    // mirror the symbol for the hinge side (along the wall) and the swing side (across it)
+    const sx = props.opening?.hingeEnd ? -1 : 1;
+    const sy = props.opening?.swingRight ? -1 : 1;
+    /** a door leaf hinged at x = h (local), `l` long, swinging to +y */
+    const leaf = (h: number, l: number, dir: 1 | -1, key: string) => (
+        <g key={key}>
+            <line x1={h} y1={t / 2} x2={h} y2={t / 2 + l} className="opening-line" />
+            <path d={`M ${h} ${t / 2 + l} A ${l} ${l} 0 0 ${dir > 0 ? 0 : 1} ${h + dir * l} ${t / 2}`} className="opening-arc" />
+        </g>
+    );
     return (
         <g transform={`translate(${c[0]} ${c[1]}) rotate(${angle})`} className={cls}>
             <rect x={-width / 2} y={-t / 2} width={width} height={t} className="opening-gap" />
@@ -822,13 +842,15 @@ function OpeningSymbol(props: { frame: WallFrame; u: number; width: number; type
                 <>
                     <line x1={-width / 2} y1={-t / 6} x2={width / 2} y2={-t / 6} className="opening-line" />
                     <line x1={-width / 2} y1={t / 6} x2={width / 2} y2={t / 6} className="opening-line" />
+                    {double && <line x1={0} y1={-t / 2} x2={0} y2={t / 2} className="opening-line" />}
                 </>
             ) : (
-                <>
-                    {/* leaf hinged at the start side, opening towards the wall's left side (+y local) */}
-                    <line x1={-width / 2} y1={t / 2} x2={-width / 2} y2={t / 2 + width} className="opening-line" />
-                    <path d={`M ${-width / 2} ${t / 2 + width} A ${width} ${width} 0 0 0 ${width / 2} ${t / 2}`} className="opening-arc" />
-                </>
+                <g transform={`scale(${sx} ${sy})`}>
+                    {double
+                        ? [leaf(-width / 2, width / 2, 1, 'l'), leaf(width / 2, width / 2, -1, 'r')]
+                        : // leaf hinged at the start side, opening towards the wall's left side (+y local)
+                          leaf(-width / 2, width, 1, 's')}
+                </g>
             )}
         </g>
     );

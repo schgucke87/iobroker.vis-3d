@@ -12,6 +12,7 @@ import { useConnection } from './iobroker/connect';
 import { useSaveStatus } from './storage/saveStatus';
 import { storageLabel } from './storage/local';
 import { useWeather } from './view3d/Weather3D';
+import { nextTheme, setThemePref, THEME_LABELS, useTheme } from './ui/theme';
 import { projectStyle } from './model/style';
 import { weatherSummary } from './model/weather';
 
@@ -103,6 +104,7 @@ function EditorApp() {
                     </button>
                 </div>
                 <div className="spacer" />
+                <ThemeButton />
                 <StatusBadge />
                 <div className="group">
                     <button onClick={() => confirm('Aktuelles Projekt durch das Beispielhaus ersetzen?') && s().setProject(demoProject({ bindings: useConnection.getState().backend?.kind === 'demo' }))}>Beispiel</button>
@@ -142,6 +144,16 @@ function viewerHref() {
     p.delete('edit');
     const q = p.toString();
     return q ? `?${q}` : '?';
+}
+
+/** Switches the UI between system, light and dark colours. */
+function ThemeButton() {
+    const pref = useTheme(s => s.pref);
+    return (
+        <button onClick={() => setThemePref(nextTheme(pref))} title="Farbschema: Automatisch (wie das System) → Hell → Dunkel">
+            {THEME_LABELS[pref]}
+        </button>
+    );
 }
 
 function StatusBadge() {

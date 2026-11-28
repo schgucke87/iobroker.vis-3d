@@ -118,6 +118,16 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - Grenzen: nur waagerechte/senkrechte Wände; Text, Maßketten und Möbel werden weitgehend ignoriert, einzelne
   Fehlerkennungen (Treppen, Schächte) lassen sich in der Vorschau abwählen
 
+**Türen, Fenster, Bibliothek, Oberfläche**
+- Fenster einfach oder als **Doppelfenster** (zwei Flügel, Mittelpfosten; gekippt kippt der zweite Flügel),
+  Türen ein- oder **zweiflügelig**
+- **Öffnungsrichtung**: Anschlag (Scharnier links/rechts) und Aufschlagseite umschaltbar – der Bogen im Grundriss
+  zeigt sie, in 3D gehen Türen und Fenster bei „offen“ entsprechend auf
+- Bibliothek mit rund 75 Objekten: Zimmerpflanzen, Garten (Bäume, Hecken, Sträucher, Beete, Gartenmöbel, Grill,
+  Feuerstelle), Möbel, Bad & Haushaltsgeräte, Leuchten innen und außen (Pendel-, Kronleuchter, Einbaustrahler,
+  LED-Leiste, Poller, Gartenstrahler, Lichterkette …) – alle Farben pro Material änderbar
+- **Dark Mode**: Automatisch (wie das System), Hell oder Dunkel – Umschalter oben rechts
+
 **Gestaltung**
 - Himmel: **Tageszeit (live)** – Sonnenstand aus Uhrzeit und Standort (ioBroker-Systemeinstellungen), Licht und Himmel
   wechseln von Tag über Dämmerung zu Nacht; Nordrichtung des Grundrisses einstellbar – oder fest: einfarbig, Tag, Abendrot, Nacht

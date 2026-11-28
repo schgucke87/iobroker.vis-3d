@@ -8,6 +8,9 @@ import * as THREE from 'three';
 import { initBackend, projectStateIds, syncSubscriptions, useConnection } from './iobroker/connect';
 import { useSaveStatus } from './storage/saveStatus';
 import './styles.css';
+import { initTheme } from './ui/theme';
+
+initTheme();
 
 const params = new URLSearchParams(location.search);
 const edit = params.has('edit');

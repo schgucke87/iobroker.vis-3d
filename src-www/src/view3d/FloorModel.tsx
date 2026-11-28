@@ -330,41 +330,80 @@ function OpeningModel({ frame, opening, mats }: { frame: WallFrame; opening: Ope
                     <boxGeometry args={[sx, sy, depth]} />
                 </mesh>
             ))}
-            {o.type === 'window' ? (
-                level >= 1 ? (
-                    // open: sash turned inwards on its left hinge
-                    <group position={[-sw / 2, 0, 0]} rotation={[0, -THREE.MathUtils.degToRad(70), 0]}>
-                        <mesh position={[sw / 2, h / 2, 0]} material={mats.glassOpen}>
-                            <boxGeometry args={[sw, h - 2 * p, 0.02]} />
-                        </mesh>
-                    </group>
-                ) : level > 0 ? (
-                    // tilted: sash leaning in at the top
-                    <group position={[0, p, 0]} rotation={[THREE.MathUtils.degToRad(12), 0, 0]}>
-                        <mesh position={[0, (h - 2 * p) / 2, 0]} material={mats.glassTilted}>
-                            <boxGeometry args={[sw, h - 2 * p, 0.02]} />
-                        </mesh>
-                    </group>
-                ) : (
-                    <mesh position={[0, h / 2, 0]} material={mats.glass}>
-                        <boxGeometry args={[sw, h - 2 * p, 0.01]} />
-                    </mesh>
-                )
-            ) : null}
+            {o.type === 'window' && <WindowSashes w={w} h={h} p={p} level={level} opening={o} mats={mats} />}
             {o.type === 'window' && shutterH > 0.005 && (
                 <mesh position={[0, h - p - shutterH / 2, shutterZ]} material={mats.shutter} castShadow>
                     <boxGeometry args={[w, shutterH, 0.025]} />
                 </mesh>
             )}
-            {o.type === 'door' && (
-                // door leaf hinged at the start side, swinging to the wall's left side
-                <group position={[-sw / 2, 0, 0]} rotation={[0, -THREE.MathUtils.degToRad(80 * level), 0]}>
-                    <mesh position={[sw / 2, (h - p) / 2, 0]} material={mats.leaf} castShadow>
-                        <boxGeometry args={[sw, h - p, 0.04]} />
-                    </mesh>
-                </group>
-            )}
+            {o.type === 'door' &&
+                leavesOf(o, sw).map((lf, i) => (
+                    // a door leaf turns around its hinge towards the swing side
+                    <group key={i} position={[lf.hinge, 0, 0]} rotation={[0, lf.turn * THREE.MathUtils.degToRad(80 * level), 0]}>
+                        <mesh position={[(lf.dir * lf.width) / 2, (h - p) / 2, 0]} material={mats.leaf} castShadow>
+                            <boxGeometry args={[lf.width, h - p, 0.04]} />
+                        </mesh>
+                    </group>
+                ))}
         </group>
+    );
+}
+
+/**
+ * The leaves (door) or sashes (window) of an opening: hinge position along the opening, the direction the
+ * leaf extends from it, and the turn direction so it swings to the chosen side (left side of the wall = +z).
+ */
+function leavesOf(o: Opening, sw: number): { hinge: number; dir: 1 | -1; width: number; turn: number }[] {
+    const side = o.swingRight ? -1 : 1;
+    const leaf = (dir: 1 | -1, width: number) => ({ hinge: (-dir * sw) / 2, dir, width, turn: -dir * side });
+    if (o.leaves === 2) return [leaf(1, sw / 2), leaf(-1, sw / 2)];
+    return [leaf(o.hingeEnd ? -1 : 1, sw)];
+}
+
+/** Glass sashes of a window; open sashes turn on their hinges, a tilted one leans in at the top. */
+function WindowSashes({ w, h, p, level, opening, mats }: { w: number; h: number; p: number; level: number; opening: Opening; mats: OpeningMats }) {
+    const sw = w - 2 * p;
+    const gh = h - 2 * p;
+    const leaves = leavesOf(opening, sw);
+    const double = leaves.length === 2;
+    return (
+        <>
+            {/* centre post of a double window */}
+            {double && (
+                <mesh position={[0, h / 2, 0]} material={mats.frame} castShadow>
+                    <boxGeometry args={[p * 0.8, h, Math.min(0.08, 0.07)]} />
+                </mesh>
+            )}
+            {leaves.map((lf, i) => {
+                const width = double ? lf.width - p * 0.4 : lf.width;
+                const center = lf.hinge + (lf.dir * lf.width) / 2;
+                if (level >= 1) {
+                    return (
+                        <group key={i} position={[lf.hinge, 0, 0]} rotation={[0, lf.turn * THREE.MathUtils.degToRad(70), 0]}>
+                            <mesh position={[(lf.dir * lf.width) / 2, h / 2, 0]} material={mats.glassOpen}>
+                                <boxGeometry args={[width, gh, 0.02]} />
+                            </mesh>
+                        </group>
+                    );
+                }
+                // tilted: a single window tilts; of a double window only the second sash
+                if (level > 0 && (!double || i === 1)) {
+                    const side = opening.swingRight ? -1 : 1;
+                    return (
+                        <group key={i} position={[center, p, 0]} rotation={[side * THREE.MathUtils.degToRad(12), 0, 0]}>
+                            <mesh position={[0, gh / 2, 0]} material={mats.glassTilted}>
+                                <boxGeometry args={[width, gh, 0.02]} />
+                            </mesh>
+                        </group>
+                    );
+                }
+                return (
+                    <mesh key={i} position={[center, h / 2, 0]} material={level > 0 ? mats.glassTilted : mats.glass}>
+                        <boxGeometry args={[width, gh, 0.01]} />
+                    </mesh>
+                );
+            })}
+        </>
     );
 }
 

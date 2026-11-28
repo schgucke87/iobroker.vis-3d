@@ -31,6 +31,12 @@ export interface Opening {
     height: number;
     /** Height of the bottom edge above the floor (0 for doors). */
     sill: number;
+    /** 2 = double window (two sashes) or double door (two leaves). */
+    leaves?: 1 | 2;
+    /** The hinge is at the side of the wall's end node `b` (default: start node `a`). */
+    hingeEnd?: boolean;
+    /** Opens towards the wall's right side (seen from a to b); default: left side. */
+    swingRight?: boolean;
     /** Contact datapoint: truthy = open (numeric 1 = tilted, 2 = open for rotary handles). */
     stateId?: string;
     /** Contact reports `true` when closed. */
@@ -96,7 +102,7 @@ export interface BackgroundImage {
 /** Where an object is mounted; decides how it snaps when placed. */
 export type Mount = 'floor' | 'wall' | 'ceiling';
 
-export type AssetCategory = 'furniture' | 'lighting' | 'appliance' | 'decor' | 'other';
+export type AssetCategory = 'furniture' | 'lighting' | 'appliance' | 'plant' | 'garden' | 'decor' | 'other';
 
 /**
  * A reusable 3D model. Built-in assets (id "builtin:…") are generated in

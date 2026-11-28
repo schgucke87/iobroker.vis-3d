@@ -1,3 +1,4 @@
+import { useTheme } from './theme';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
@@ -24,7 +25,9 @@ const CadEditor = lazy(() => import('../cad/CadEditor').then(m => ({ default: m.
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
     furniture: 'Möbel',
     lighting: 'Leuchten',
-    appliance: 'Geräte',
+    appliance: 'Bad & Geräte',
+    plant: 'Zimmerpflanzen',
+    garden: 'Garten',
     decor: 'Deko',
     other: 'Sonstiges',
 };
@@ -93,7 +96,7 @@ export function LibraryPanel() {
             </button>
             <input className="search" placeholder="Suchen …" value={query} onChange={e => setQuery(e.target.value)} />
             <div className="chips">
-                {(['all', 'furniture', 'lighting', 'appliance', 'decor', 'other'] as const).map(c => (
+                {(['all', ...(Object.keys(CATEGORY_LABELS) as AssetCategory[])] as const).map(c => (
                     <button key={c} className={filter === c ? 'active' : ''} onClick={() => setFilter(c)}>
                         {c === 'all' ? 'Alle' : CATEGORY_LABELS[c]}
                     </button>
@@ -335,12 +338,13 @@ function PreviewCanvas({ object, size }: { object: THREE.Object3D; size: THREE.V
         return g;
     }, [size.z]);
     const cells = Math.max(4, Math.ceil(radius * 2.5));
+    const dark = useTheme(s => s.dark);
     return (
         <Canvas camera={{ position: [radius * 1.6, radius * 1.3, radius * 2.2], fov: 40, near: 0.01, far: 500 }} shadows>
-            <color attach="background" args={['#f1f3f6']} />
+            <color attach="background" args={[dark ? '#1a1d23' : '#f1f3f6']} />
             <hemisphereLight args={['#ffffff', '#a59d8e', 1.8]} />
             <directionalLight position={[3, 6, 4]} intensity={1.5} />
-            <gridHelper args={[cells, cells, '#b4bac4', '#d9dde3']} />
+            <gridHelper key={dark ? 'd' : 'l'} args={[cells, cells, dark ? '#4a5160' : '#b4bac4', dark ? '#2e333c' : '#d9dde3']} />
             <primitive object={object} />
             <lineSegments geometry={frontLine}>
                 <lineBasicMaterial color="#3b74e8" />

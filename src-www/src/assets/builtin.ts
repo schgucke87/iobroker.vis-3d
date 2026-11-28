@@ -6,53 +6,8 @@
 import * as THREE from 'three';
 import type { AssetMeta } from '../model/types';
 
-type Factory = () => THREE.Group;
-
-const mat = (color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}, name = '') =>
-    new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...extra, name });
-
-/** Box with its bottom centre at (x, y, z). */
-function box(g: THREE.Group, m: THREE.Material, w: number, h: number, d: number, x = 0, y = 0, z = 0, radius = 0) {
-    const geo = radius > 0 ? roundedBox(w, h, d, radius) : new THREE.BoxGeometry(w, h, d);
-    const mesh = new THREE.Mesh(geo, m);
-    mesh.position.set(x, y + h / 2, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    g.add(mesh);
-    return mesh;
-}
-
-function cyl(g: THREE.Group, m: THREE.Material, rTop: number, rBottom: number, h: number, x = 0, y = 0, z = 0, seg = 24) {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, h, seg), m);
-    mesh.position.set(x, y + h / 2, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    g.add(mesh);
-    return mesh;
-}
-
-function roundedBox(w: number, h: number, d: number, r: number): THREE.BufferGeometry {
-    const shape = new THREE.Shape();
-    const x = -w / 2;
-    const y = -h / 2;
-    r = Math.min(r, w / 2, h / 2);
-    shape.moveTo(x + r, y);
-    shape.lineTo(x + w - r, y);
-    shape.quadraticCurveTo(x + w, y, x + w, y + r);
-    shape.lineTo(x + w, y + h - r);
-    shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    shape.lineTo(x + r, y + h);
-    shape.quadraticCurveTo(x, y + h, x, y + h - r);
-    shape.lineTo(x, y + r);
-    shape.quadraticCurveTo(x, y, x + r, y);
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false, curveSegments: 4 });
-    geo.translate(0, 0, -d / 2);
-    return geo;
-}
-
-const legs = (g: THREE.Group, m: THREE.Material, w: number, d: number, h: number, t = 0.04, inset = 0.04) => {
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(g, m, t, h, t, sx * (w / 2 - inset), 0, sz * (d / 2 - inset));
-};
+import { box, cyl, legs, mat, type Factory } from './primitives';
+import { MORE, MORE_META } from './builtinMore';
 
 const F: Record<string, Factory> = {
     sofa: () => {
@@ -209,7 +164,7 @@ const META: Omit<AssetMeta, 'size'>[] = [
     { id: 'builtin:tv', name: 'Fernseher', category: 'appliance', mount: 'wall' },
     { id: 'builtin:floorLamp', name: 'Stehlampe', category: 'lighting', mount: 'floor' },
     { id: 'builtin:ceilingLamp', name: 'Deckenleuchte', category: 'lighting', mount: 'ceiling' },
-    { id: 'builtin:plant', name: 'Pflanze', category: 'decor', mount: 'floor' },
+    { id: 'builtin:plant', name: 'Zimmerpflanze', category: 'plant', mount: 'floor' },
 ];
 
 export function isBuiltin(id: string) {
@@ -217,7 +172,8 @@ export function isBuiltin(id: string) {
 }
 
 export function createBuiltin(id: string): THREE.Group | null {
-    const f = F[id.slice('builtin:'.length)];
+    const key = id.slice('builtin:'.length);
+    const f = F[key] ?? MORE[key];
     return f ? f() : null;
 }
 
@@ -225,7 +181,7 @@ let metaCache: AssetMeta[] | null = null;
 /** Metadata of all built-in assets, sizes measured from the generated models. */
 export function builtinAssets(): AssetMeta[] {
     if (!metaCache) {
-        metaCache = META.map(m => {
+        metaCache = [...META, ...MORE_META].map(m => {
             const obj = createBuiltin(m.id)!;
             const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
             disposeObject(obj);

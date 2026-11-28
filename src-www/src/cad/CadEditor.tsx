@@ -3,6 +3,7 @@ import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { CadDoc, CadPrimitive, CadShape } from './types';
+import { useTheme } from '../ui/theme';
 import {
     HOLE_MATERIAL,
     baseGeometry,
@@ -309,7 +310,7 @@ export function CadEditor({ asset, onClose }: CadEditorProps) {
                     </aside>
                     <div className="cad-view">
                         <Canvas shadows camera={{ position: [1.6, 1.3, 2.0], fov: 40, near: 0.01, far: 100 }} onPointerMissed={() => setSelected([])}>
-                            <color attach="background" args={['#eef1f5']} />
+                            <ThemedBackground light="#eef1f5" dark="#1a1d23" />
                             <hemisphereLight args={['#ffffff', '#a59d8e', 1.6]} />
                             <directionalLight position={[3, 6, 4]} intensity={1.5} castShadow shadow-mapSize={[1024, 1024]} />
                             <Workplane />
@@ -379,16 +380,22 @@ export function CadEditor({ asset, onClose }: CadEditorProps) {
 
 const cm = (m: number) => (Math.round(m * 1000) / 10).toLocaleString('de-DE');
 
+function ThemedBackground({ light, dark }: { light: string; dark: string }) {
+    const isDark = useTheme(s => s.dark);
+    return <color attach="background" args={[isDark ? dark : light]} />;
+}
+
 function Workplane() {
+    const dark = useTheme(s => s.dark);
     return (
-        <group>
+        <group key={dark ? 'd' : 'l'}>
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.001, 0]} receiveShadow>
                 <planeGeometry args={[6, 6]} />
-                <meshStandardMaterial color="#f8f9fb" roughness={1} />
+                <meshStandardMaterial color={dark ? '#262a31' : '#f8f9fb'} roughness={1} />
             </mesh>
             {/* 10 cm grid with 1 m lines */}
-            <gridHelper args={[6, 60, '#c9ced6', '#e1e4e9']} position={[0, 0, 0]} />
-            <gridHelper args={[6, 6, '#9aa3b0', '#9aa3b0']} position={[0, 0.0005, 0]} />
+            <gridHelper args={[6, 60, dark ? '#3a404b' : '#c9ced6', dark ? '#2e333c' : '#e1e4e9']} position={[0, 0, 0]} />
+            <gridHelper args={[6, 6, dark ? '#5a6372' : '#9aa3b0', dark ? '#5a6372' : '#9aa3b0']} position={[0, 0.0005, 0]} />
         </group>
     );
 }

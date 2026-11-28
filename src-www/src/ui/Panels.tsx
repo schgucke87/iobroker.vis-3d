@@ -131,6 +131,33 @@ export function PropertiesPanel() {
                     <NumberField label="Höhe" unit="m" value={o.height} min={0.2} onChange={v => up({ height: Math.max(0.2, v) })} />
                     <NumberField label="Brüstung" unit="m" value={o.sill} min={0} onChange={v => up({ sill: Math.max(0, v) })} />
                     <NumberField label="Position" unit="m" value={o.offset} onChange={v => up({ offset: v })} />
+                    <div className="field">
+                        <span>{o.type === 'door' ? 'Flügel' : 'Ausführung'}</span>
+                        <span className="chips">
+                            <button className={o.leaves !== 2 ? 'active' : ''} onClick={() => up({ leaves: undefined })}>
+                                {o.type === 'door' ? 'Einflügelig' : 'Einfach'}
+                            </button>
+                            <button className={o.leaves === 2 ? 'active' : ''} onClick={() => up({ leaves: 2 })}>
+                                {o.type === 'door' ? 'Zweiflügelig' : 'Doppelfenster'}
+                            </button>
+                        </span>
+                    </div>
+                    <div className="field">
+                        <span>Öffnungsrichtung</span>
+                        <span className="row">
+                            {o.leaves !== 2 && (
+                                <button onClick={() => up({ hingeEnd: !o.hingeEnd || undefined })} title="Scharnier auf die andere Seite (DIN links/rechts)">
+                                    ⇄ Anschlag
+                                </button>
+                            )}
+                            <button onClick={() => up({ swingRight: !o.swingRight || undefined })} title="Öffnet zur anderen Wandseite (z. B. nach innen statt nach außen)">
+                                ⇅ Seite
+                            </button>
+                        </span>
+                    </div>
+                    <div className="hint-small">
+                        {o.type === 'door' ? 'Der Bogen im Grundriss zeigt, wohin die Tür aufgeht.' : 'Bestimmt, wie das Fenster in 3D aufgeht, wenn der Kontakt „offen“ meldet.'}
+                    </div>
                     <h3>{o.type === 'door' ? 'Türkontakt' : 'Fensterkontakt'}</h3>
                     <StateIdField label="Datenpunkt" value={o.stateId} roleHint="sensor" onChange={stateId => up({ stateId: stateId || undefined })} />
                     {o.stateId && (

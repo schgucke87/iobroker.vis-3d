@@ -1,8 +1,12 @@
 {
   "common": {
     "name": "vis-3d",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "news": {
+      "0.3.0": {
+        "en": "Double windows, double doors, opening direction, dark mode, many new objects (plants, garden, furniture, lights)",
+        "de": "Doppelfenster, zweiflügelige Türen, Öffnungsrichtung, Dark Mode, viele neue Objekte (Pflanzen, Garten, Möbel, Leuchten)"
+      },
       "0.2.0": {
         "en": "Detect walls from the floor plan template (with windows and doors)",
         "de": "Wände automatisch aus der Grundriss-Vorlage erkennen (mit Fenstern und Türen)"

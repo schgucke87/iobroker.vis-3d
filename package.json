@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vis-3d",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "3D-Visualisierung für ioBroker mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten",
   "author": "schgucke87",
   "license": "MIT",
