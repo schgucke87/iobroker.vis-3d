@@ -1,0 +1,91 @@
+{
+  "common": {
+    "name": "vis-3d",
+    "version": "0.4.0",
+    "news": {
+      "0.4.0": {
+        "en": "Stairs between storeys (straight, L, U, spiral) with slab opening, loft ladder, 1/2/3-head ceiling spots and recessed spot, proportional scaling",
+        "de": "Treppen zwischen Stockwerken (gerade, L, U, Wendeltreppe) mit Deckenöffnung, Dachbodentreppe, Deckenspots 1-/2-/3-flammig und Einbauspot, proportionales Skalieren"
+      },
+      "0.3.0": {
+        "en": "Double windows, double doors, opening direction, dark mode, many new objects (plants, garden, furniture, lights)",
+        "de": "Doppelfenster, zweiflügelige Türen, Öffnungsrichtung, Dark Mode, viele neue Objekte (Pflanzen, Garten, Möbel, Leuchten)"
+      },
+      "0.2.0": {
+        "en": "Detect walls from the floor plan template (with windows and doors)",
+        "de": "Wände automatisch aus der Grundriss-Vorlage erkennen (mit Fenstern und Türen)"
+      },
+      "0.1.1": {
+        "en": "Floor plan template stays visible when rooms are closed",
+        "de": "Grundriss-Vorlage bleibt sichtbar, wenn Räume geschlossen sind"
+      },
+      "0.1.0": {
+        "en": "3D view with roofs, dormers, basement, garden, live weather (daswetter) and snow cover, CAD furniture editor, suggestions incl. Hue, colours and daylight",
+        "de": "3D-Ansicht mit Dächern, Gauben, Keller, Garten, Live-Wetter (daswetter) und Schneedecke, CAD-Möbeleditor, Vorschläge inkl. Hue, Farben und Tageslicht"
+      },
+      "0.0.1": {
+        "en": "Initial version: wall editor, room detection, 3D building view",
+        "de": "Erste Version: Wand-Editor, Raumerkennung, 3D-Gebäudeansicht"
+      }
+    },
+    "titleLang": {
+      "en": "3D visualization",
+      "de": "3D-Visualisierung"
+    },
+    "desc": {
+      "en": "3D visualization with wall editor, model import and state-driven objects",
+      "de": "3D-Visualisierung mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten"
+    },
+    "authors": [
+      "schgucke87"
+    ],
+    "keywords": [
+      "visualization",
+      "3d",
+      "floorplan",
+      "vis"
+    ],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "icon": "vis-3d.svg",
+    "type": "visualization",
+    "onlyWWW": true,
+    "noConfig": true,
+    "singleton": true,
+    "enabled": true,
+    "compact": true,
+    "connectionType": "local",
+    "dataSource": "push",
+    "readme": "https://github.com/schgucke87/iobroker.vis-3d/blob/main/README.md",
+    "localLinks": {
+      "_default": "%web_protocol%://%ip%:%web_port%/vis-3d/index.html",
+      "Editor": "%web_protocol%://%ip%:%web_port%/vis-3d/index.html?edit=1"
+    },
+    "dependencies": [
+      {
+        "js-controller": ">=5.0.0"
+      }
+    ],
+    "globalDependencies": [
+      {
+        "web": ">=6.0.0"
+      }
+    ]
+  },
+  "native": {},
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "",
+      "type": "meta",
+      "common": {
+        "name": {
+          "en": "Project files",
+          "de": "Projektdateien"
+        },
+        "type": "meta.user"
+      },
+      "native": {}
+    }
+  ]
+}

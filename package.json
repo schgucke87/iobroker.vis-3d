@@ -1,0 +1,27 @@
+{
+  "name": "iobroker.vis-3d",
+  "version": "0.4.0",
+  "description": "3D-Visualisierung für ioBroker mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten",
+  "author": "schgucke87",
+  "license": "MIT",
+  "keywords": [
+    "ioBroker",
+    "visualization",
+    "3d",
+    "vis",
+    "three.js",
+    "floorplan"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schgucke87/iobroker.vis-3d"
+  },
+  "type": "module",
+  "files": [
+    "www/",
+    "admin/",
+    "io-package.json",
+    "LICENSE",
+    "README.md"
+  ]
+}
