@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -17,6 +17,9 @@ import {
     type Unit,
 } from '../assets/importer';
 import { uid } from '../model/ops';
+
+// the furniture editor (with its CSG library) is only loaded when it is opened
+const CadEditor = lazy(() => import('../cad/CadEditor').then(m => ({ default: m.CadEditor })));
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
     furniture: 'Möbel',
@@ -51,6 +54,7 @@ export function LibraryPanel() {
     const [query, setQuery] = useState('');
     const [importing, setImporting] = useState<File[] | null>(null);
     const [dragOver, setDragOver] = useState(false);
+    const [cad, setCad] = useState<{ asset?: AssetMeta } | null>(null);
 
     const assets = useMemo(() => allAssets(project), [project]);
     const shown = assets.filter(
@@ -84,6 +88,9 @@ export function LibraryPanel() {
                 ⤓ Modell importieren …
             </button>
             <div className="hint-small">GLB, glTF, OBJ (+MTL), FBX, STL – auch per Drag & Drop. Texturen einfach mit auswählen.</div>
+            <button className="import-btn" onClick={() => setCad({})}>
+                🛠 Möbel selbst bauen …
+            </button>
             <input className="search" placeholder="Suchen …" value={query} onChange={e => setQuery(e.target.value)} />
             <div className="chips">
                 {(['all', 'furniture', 'lighting', 'appliance', 'decor', 'other'] as const).map(c => (
@@ -102,6 +109,18 @@ export function LibraryPanel() {
                     >
                         <div className="thumb">{thumbnailFor(a) ? <img src={thumbnailFor(a)} alt="" /> : <span>?</span>}</div>
                         <div className="asset-name">{a.name}</div>
+                        {a.cad && (
+                            <button
+                                className="asset-edit"
+                                title="Im Möbel-Editor bearbeiten"
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    setCad({ asset: a });
+                                }}
+                            >
+                                ✎
+                            </button>
+                        )}
                         {!isBuiltin(a.id) && (
                             <button
                                 className="asset-delete"
@@ -125,6 +144,11 @@ export function LibraryPanel() {
                 ))}
             </div>
             {importing && <ImportDialog files={importing} onClose={() => setImporting(null)} />}
+            {cad && (
+                <Suspense fallback={<div className="modal-backdrop"><div className="modal loading">Lade Möbel-Editor …</div></div>}>
+                    <CadEditor asset={cad.asset} onClose={() => setCad(null)} />
+                </Suspense>
+            )}
         </div>
     );
 }

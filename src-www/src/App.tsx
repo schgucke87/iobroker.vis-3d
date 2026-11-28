@@ -39,6 +39,8 @@ function EditorApp() {
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if ((e.target as HTMLElement)?.closest?.('input, textarea, select')) return;
+            // dialogs (furniture editor, pickers) have their own keys
+            if (document.querySelector('.modal-backdrop')) return;
             const mod = e.ctrlKey || e.metaKey;
             if (mod && e.key.toLowerCase() === 'z') {
                 e.preventDefault();

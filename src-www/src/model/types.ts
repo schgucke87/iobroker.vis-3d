@@ -9,6 +9,8 @@
  * (mitred wall footprints, room polygons, meshes) is derived from it.
  */
 
+import type { CadDoc } from '../cad/types';
+
 export type Vec2 = [number, number];
 
 export interface WallNode {
@@ -103,6 +105,8 @@ export interface AssetMeta {
     thumbnail?: string;
     /** Size of the stored GLB in bytes. */
     bytes?: number;
+    /** Built with the furniture editor: its document, so it can be edited again. */
+    cad?: CadDoc;
 }
 
 /**

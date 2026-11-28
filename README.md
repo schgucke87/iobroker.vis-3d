@@ -81,8 +81,17 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
   Alles mit einem Schritt rückgängig zu machen.
 - Projekt und Modelle im ioBroker-Dateisystem (`vis-3d.0/main/`)
 
+**Möbel selbst bauen** (Bibliothek → „Möbel selbst bauen“)
+- Einfacher CAD-Editor nach dem Baukastenprinzip: Quader, Platte, Brett, Kantholz, Zylinder, Rundstab, Kugel, Kegel, Keil, Halbzylinder
+- Jede Form ist **Körper** oder **Bohrung**; beim **Gruppieren** werden Körper vereint und Bohrungen herausgeschnitten
+  (z. B. Kabeldurchlass in einer Tischplatte); Gruppen sind ein Objekt (keine Baumstruktur) und lassen sich wieder lösen
+- Maße, Position und Drehung in cm/° oder direkt mit dem Gizmo (Raster 1 cm, 15°-Schritte), Farbe und Bezeichnung pro Teil
+- Speichern legt das Möbel in die Bibliothek; es bleibt bearbeitbar (✎ auf der Kachel), platzierte Exemplare aktualisieren sich
+- Tasten: T/R/S Verschieben/Drehen/Größe, H Körper↔Bohrung, Strg+G / Strg+Umschalt+G gruppieren/lösen, Strg+D, Strg+A, Entf, Strg+Z/Y
+
 **Gestaltung**
-- Himmel: einfarbig, Tag, Abendrot oder Nacht (nachts gedimmte Grundbeleuchtung, Sterne – eingeschaltete Lampen leuchten deutlich)
+- Himmel: **Tageszeit (live)** – Sonnenstand aus Uhrzeit und Standort (ioBroker-Systemeinstellungen), Licht und Himmel
+  wechseln von Tag über Dämmerung zu Nacht; Nordrichtung des Grundrisses einstellbar – oder fest: einfarbig, Tag, Abendrot, Nacht
 - Grundstück: Rasen, Kies, Pflaster, Schnee oder einfarbig, in beliebiger Farbe
 - Wände: Standardfarbe innen und außen (Fassade) – welche Wandseite außen liegt, wird automatisch erkannt;
   jede Wandseite lässt sich einzeln färben (im Panel nach dem angrenzenden Raum benannt)
@@ -152,6 +161,7 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [ ] Ansicht lädt Projektänderungen aus dem Editor automatisch nach
 - [x] Automatische Vorschläge über `enum.rooms` + type-detector
 - [x] Hue- und Farb-Lichter in den Vorschlägen
+- [x] Lichtverhältnisse nach Tageszeit, Möbel-Editor (CAD)
 - [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht
 
