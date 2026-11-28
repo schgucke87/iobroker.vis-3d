@@ -242,8 +242,25 @@ export function surfaceMaterial(pattern: Pattern, color: string, uvMetres = 1, e
 
 /** Snow layer material for ground, garden areas and roofs; its opacity follows the amount of snow. */
 export function snowMaterial(uvMetres = 1): THREE.MeshStandardMaterial {
-    return surfaceMaterial('snow', '#f3f6f9', uvMetres, { roughness: 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    return surfaceMaterial('snow', '#f5f7fa', uvMetres, { roughness: 1, emissive: new THREE.Color('#dde6f0'), emissiveIntensity: 0.22, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 }
 
-/** Opacity of a snow layer for 0…1 snow: a dusting is see-through, from about 5 cm it is closed. */
-export const snowOpacity = (amount: number) => (amount <= 0 ? 0 : Math.min(1, 0.3 + amount * 0.85));
+/**
+ * Opacity of a snow layer for 0…1 snow: a dusting lets the surface show through, from about 5 cm it is closed.
+ * `density` (0.2…1, a project setting): at 1 even a thin layer is opaque, lower values let more show through.
+ */
+export const snowOpacity = (amount: number, density = 0.9) => (amount <= 0 ? 0 : Math.min(1, (0.45 + amount * 0.8) * density * 1.25));
+
+/**
+ * Sets a snow layer's opacity. A closed layer is opaque; a thin one is blended, but still writes depth and is
+ * drawn before other see-through things (render order -1), so it stays visible behind window glass.
+ */
+export function applySnowOpacity(m: THREE.Material, opacity: number) {
+    const transparent = opacity < 0.995;
+    if (m.transparent !== transparent) {
+        m.transparent = transparent;
+        m.needsUpdate = true;
+    }
+    m.opacity = opacity;
+    m.depthWrite = opacity > 0.3;
+}

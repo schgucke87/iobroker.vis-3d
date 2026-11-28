@@ -9,6 +9,7 @@ import { Roof3D } from './Roof3D';
 import { roofFrame, roofTop } from '../geometry/roof';
 import { Environment } from './Environment';
 import { useSnowCover } from './useSnowCover';
+import { snowOpacity } from './textures';
 import { projectStyle } from '../model/style';
 import { ObjectInstance } from './Objects3D';
 import { computePlacement } from '../geometry/placement';
@@ -79,7 +80,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     const settings = useEditor(s => s.settings);
     const heatmap = useEditor(s => s.heatmap);
     const style = useMemo(() => projectStyle(project), [project]);
-    const snow = useSnowCover(style).amount;
+    const snow = snowOpacity(useSnowCover(style).amount, style.snowDensity);
     const [selectedGroup, setSelectedGroup] = useState<THREE.Group | null>(null);
     const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
 

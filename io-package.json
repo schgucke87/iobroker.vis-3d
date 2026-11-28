@@ -1,8 +1,12 @@
 {
   "common": {
     "name": "vis-3d",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "news": {
+      "0.1.0": {
+        "en": "3D view with roofs, dormers, basement, garden, live weather (daswetter) and snow cover, CAD furniture editor, suggestions incl. Hue, colours and daylight",
+        "de": "3D-Ansicht mit Dächern, Gauben, Keller, Garten, Live-Wetter (daswetter) und Schneedecke, CAD-Möbeleditor, Vorschläge inkl. Hue, Farben und Tageslicht"
+      },
       "0.0.1": {
         "en": "Initial version: wall editor, room detection, 3D building view",
         "de": "Erste Version: Wand-Editor, Raumerkennung, 3D-Gebäudeansicht"

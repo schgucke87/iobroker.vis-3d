@@ -1,6 +1,6 @@
 {
   "name": "iobroker.vis-3d",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "3D-Visualisierung für ioBroker mit Wand-Editor, Modell-Import und datenpunktgesteuerten Objekten",
   "author": "schgucke87",
   "license": "MIT",
@@ -30,7 +30,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prepare": "npm run build",
-    "release": "npm run build && node scripts/make-release.mjs"
+    "release": "npm run build && node scripts/make-release.mjs",
+    "bump": "node scripts/bump.mjs"
   },
   "devDependencies": {
     "@iobroker/socket-client": "^5.7.0",

@@ -11,6 +11,7 @@ export const DEFAULT_STYLE: ProjectStyle = {
     skyColor: '#e9edf2',
     northAngle: 0,
     weather: 'off',
+    snowDensity: 0.9,
 };
 
 export const projectStyle = (p: Project): ProjectStyle => ({ ...DEFAULT_STYLE, ...p.style });

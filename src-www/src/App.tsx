@@ -153,7 +153,7 @@ function StatusBadge() {
     return (
         <div
             className={`status-badge ${live ? 'live' : 'demo'} ${save.status === 'error' ? 'error' : ''}`}
-            title={[backend?.label, reason && `Grund: ${reason}`, `Speicherort: ${storageLabel()}`, save.error].filter(Boolean).join('\n')}
+            title={[`vis-3d ${__APP_VERSION__}`, backend?.label, reason && `Grund: ${reason}`, `Speicherort: ${storageLabel()}`, save.error].filter(Boolean).join('\n')}
         >
             <span className="dot" />
             {live ? 'ioBroker' : 'Demo-Daten'} · {saveText}

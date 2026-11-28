@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { useWeather, WeatherEffects, type Shelter } from './Weather3D';
 import type { Weather } from '../model/weather';
 import type { ProjectStyle } from '../model/types';
-import { snowMaterial, snowOpacity, surfaceMaterial } from './textures';
+import { applySnowOpacity, snowMaterial, surfaceMaterial } from './textures';
 import { daylight, DEFAULT_LOCATION, sunDirection, sunPosition, type SunPosition } from '../model/sun';
 import { useConnection } from '../iobroker/connect';
 
@@ -58,7 +58,7 @@ export function Environment({
     style: ProjectStyle;
     groundOpacity?: number;
     shelter?: Shelter;
-    /** Lying snow 0…1 (see useSnowCover). */
+    /** Opacity of the lying snow, 0 = none (see useSnowCover / snowOpacity). */
     snowCover?: number;
 }) {
     const live = useLiveSun(style.sky === 'auto');
@@ -154,7 +154,7 @@ export function Environment({
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.25, 0]} receiveShadow material={ground}>
                 <circleGeometry args={[80, 64]} />
             </mesh>
-            {snowCover > 0 && groundOpacity >= 1 && <SnowCover amount={snowCover} />}
+            {snowCover > 0 && groundOpacity >= 1 && <SnowCover opacity={snowCover} />}
         </>
     );
 }
@@ -193,12 +193,12 @@ function FlashBackground({ color, flash }: { color: string; flash: { current: nu
 }
 
 /** Snow on the ground: a dusting lets the ground show through, deep snow covers it. */
-function SnowCover({ amount }: { amount: number }) {
+function SnowCover({ opacity }: { opacity: number }) {
     const material = useMemo(() => snowMaterial(160), []);
     useEffect(() => () => material.dispose(), [material]);
-    material.opacity = snowOpacity(amount);
+    applySnowOpacity(material, opacity);
     return (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.24, 0]} receiveShadow material={material} renderOrder={1}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.24, 0]} receiveShadow material={material} renderOrder={-1}>
             <circleGeometry args={[80, 64]} />
         </mesh>
     );

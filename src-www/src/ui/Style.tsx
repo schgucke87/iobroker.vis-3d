@@ -252,6 +252,21 @@ function SnowSettings() {
             </div>
             <StateIdField label="Datenpunkt (hat Vorrang)" value={style.snowStateId} onChange={id => set({ snowStateId: id || undefined })} />
             <div className="hint-small">Wahr/falsch für „Schnee liegt“ oder eine Zahl für die Schneehöhe in cm, z. B. von einer Wetterstation.</div>
+            <label className="field">
+                <span>Deckkraft</span>
+                <span className="input-unit">
+                    <input
+                        type="range"
+                        min={20}
+                        max={100}
+                        step={5}
+                        value={Math.round(style.snowDensity * 100)}
+                        onChange={e => set({ snowDensity: Number(e.target.value) / 100 })}
+                    />
+                    <em>{Math.round(style.snowDensity * 100)} %</em>
+                </span>
+            </label>
+            <div className="hint-small">Bei 100 % deckt auch dünner Schnee vollständig; weniger lässt den Boden je nach Schneehöhe durchscheinen.</div>
             <div className="hint-small">
                 {status}
                 {cover.error && (

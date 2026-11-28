@@ -6,7 +6,7 @@ import type { DetectedRoom, Floor, Opening, ProjectStyle } from '../model/types'
 import { computeWallGeometry, clampOpening, pointOnWall, type WallFrame } from '../geometry/walls';
 import { detectRooms, wallSideRooms } from '../geometry/rooms';
 import { buildPrism, buildWallGeometry, yawFor } from '../geometry/mesh';
-import { snowMaterial, snowOpacity, surfaceMaterial } from './textures';
+import { applySnowOpacity, snowMaterial, surfaceMaterial } from './textures';
 import { roofFrame, roofHeightAt, wallTopProfile } from '../geometry/roof';
 import { DEFAULT_STYLE } from '../model/style';
 import { useStateValue } from '../iobroker/connect';
@@ -24,7 +24,7 @@ export interface FloorModelProps {
     style?: ProjectStyle;
     /** Colour room floors by temperature. */
     heatmap?: boolean;
-    /** Lying snow 0…1: covers the areas of a garden floor. */
+    /** Opacity of the lying snow on the areas of a garden floor (0 = none). */
     snow?: number;
     selectedWallId?: string;
     hoverRoom?: number | null;
@@ -372,11 +372,11 @@ function OpeningModel({ frame, opening, mats }: { frame: WallFrame; opening: Ope
 function AreaSnow({ geometries, amount, opacity }: { geometries: THREE.BufferGeometry[]; amount: number; opacity: number }) {
     const material = useMemo(() => snowMaterial(1), []);
     useEffect(() => () => material.dispose(), [material]);
-    material.opacity = snowOpacity(amount) * opacity;
+    applySnowOpacity(material, amount * opacity);
     return (
         <>
             {geometries.map((g, i) => (
-                <mesh key={i} geometry={g} material={material} position={[0, 0.012, 0]} receiveShadow raycast={() => null} renderOrder={1} />
+                <mesh key={i} geometry={g} material={material} position={[0, 0.012, 0]} receiveShadow raycast={() => null} renderOrder={-1} />
             ))}
         </>
     );

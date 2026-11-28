@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import type { Floor } from '../model/types';
 import { roofFrame, roofPlanes, ROOF_THICKNESS } from '../geometry/roof';
 import { buildRoofGeometry } from '../geometry/mesh';
-import { snowMaterial, snowOpacity, surfaceMaterial } from './textures';
+import { applySnowOpacity, snowMaterial, surfaceMaterial } from './textures';
 import { RoofFeatures3D, type FeatureMaterials } from './RoofFeatures3D';
 
 /**
@@ -18,7 +18,7 @@ export function Roof3D(props: {
     state: 'closed' | 'open' | 'hidden';
     /** Explosion view: the roof slopes move apart, outwards and down their slope. */
     spread?: boolean;
-    /** Lying snow 0…1. */
+    /** Opacity of the lying snow (0 = none). */
     snow?: number;
     /** Colour of the dormer walls (the facade colour). */
     wallColor?: string;
@@ -88,7 +88,7 @@ export function Roof3D(props: {
             }
             m.opacity = a.opacity;
         }
-        snowMat.opacity = snowOpacity(snow) * a.opacity;
+        applySnowOpacity(snowMat, snow * a.opacity);
         extra.glass.opacity = 0.45 * a.opacity;
         extra.glassOpen.opacity = 0.6 * a.opacity;
         extra.glassTilted.opacity = 0.6 * a.opacity;
@@ -99,7 +99,7 @@ export function Roof3D(props: {
         <group ref={group} position={[0, props.elevation + props.offset, 0]}>
             {parts.map((p, i) => (
                 <mesh key={i} ref={el => void (planeRefs.current[i] = el)} geometry={p.geometry} material={material} castShadow receiveShadow onClick={props.onClick}>
-                    {snow > 0 && p.snow && <mesh geometry={p.snow} material={snowMat} receiveShadow raycast={() => null} renderOrder={1} />}
+                    {snow > 0 && p.snow && <mesh geometry={p.snow} material={snowMat} receiveShadow raycast={() => null} renderOrder={-1} />}
                 </mesh>
             ))}
             {frame && floor.roof?.features?.length ? (

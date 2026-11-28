@@ -273,6 +273,8 @@ export interface ProjectStyle {
     snowOpenMeteo?: boolean;
     /** Datapoint for lying snow: boolean (snow yes/no) or depth in cm; takes priority over Open-Meteo. */
     snowStateId?: string;
+    /** How opaque lying snow is, 0.2…1 (1: even a thin layer covers the ground completely). */
+    snowDensity: number;
 }
 
 export interface Project {

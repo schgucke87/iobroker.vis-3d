@@ -117,7 +117,7 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
   `Hour_1`) wird automatisch gefunden – am genauesten mit der daswetter-Option „Aktuelle Stunde kopieren“.
   Alternativ feste Vorschau: sonnig, wolkig, bedeckt, Regen, Starkregen, Gewitter, Schnee, Nebel
 - **Schneedecke**: liegender Schnee auf Grundstück, Gartenbereichen (Terrassen …) und Dächern (steile Dachflächen
-  bleiben frei) – eine dünne Schicht lässt den Boden durchscheinen, ab ca. 5 cm ist alles weiß. Quelle: ein eigener
+  bleiben frei), auch durch die Fenster sichtbar; Deckkraft einstellbar (bei 100 % deckt auch dünner Schnee). Quelle: ein eigener
   Datenpunkt (wahr/falsch oder Schneehöhe in cm, hat Vorrang) und/oder die berechnete Schneehöhe von
   [Open-Meteo](https://open-meteo.com) für den ioBroker-Standort (optional, überträgt die Koordinaten an Open-Meteo)
 - Grundstück: Rasen, Kies, Pflaster, Schnee oder einfarbig, in beliebiger Farbe
@@ -145,6 +145,16 @@ npm run build      # baut nach www/ (wird vom ioBroker web-Adapter unter /vis-3d
 Ohne installierten Adapter (Demo oder `?host=` gegen ein ioBroker ohne vis-3d) wird im Browser gespeichert (`localStorage`, Modelle in der IndexedDB). Als JSON exportiert, enthält die Datei auch die Modelle.
 
 URL-Parameter: `edit` (Editor), `demo` (Demo-Daten erzwingen), `host=IP:Port` (ioBroker web-Adapter auf anderem Rechner), `debug` (Stores in der Browser-Konsole unter `window.__vis3d`).
+
+### Version
+
+Jede Änderung, die ins Release geht, bekommt eine neue Versionsnummer samt Änderungsnotiz (erscheint im ioBroker-Admin):
+
+```bash
+npm run bump -- minor "Neue Funktion …" "New feature …"
+```
+
+`patch` für Fehlerbehebungen, `minor` für neue Funktionen. Die Version steht auch im Tooltip des Status-Badges im Editor.
 
 ### Tastenkürzel
 
