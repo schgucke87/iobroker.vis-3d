@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { useWeather, WeatherEffects, type Shelter } from './Weather3D';
 import type { Weather } from '../model/weather';
 import type { ProjectStyle } from '../model/types';
-import { surfaceMaterial } from './textures';
+import { snowMaterial, snowOpacity, surfaceMaterial } from './textures';
 import { daylight, DEFAULT_LOCATION, sunDirection, sunPosition, type SunPosition } from '../model/sun';
 import { useConnection } from '../iobroker/connect';
 
@@ -49,7 +49,18 @@ export function useLiveSun(enabled: boolean): { sun: SunPosition; location: { la
 }
 
 /** Sky, ground and the global lights, following the project style (or the real time of day). */
-export function Environment({ style, groundOpacity = 1, shelter }: { style: ProjectStyle; groundOpacity?: number; shelter?: Shelter }) {
+export function Environment({
+    style,
+    groundOpacity = 1,
+    shelter,
+    snowCover = 0,
+}: {
+    style: ProjectStyle;
+    groundOpacity?: number;
+    shelter?: Shelter;
+    /** Lying snow 0…1 (see useSnowCover). */
+    snowCover?: number;
+}) {
     const live = useLiveSun(style.sky === 'auto');
     const ground = useMemo(
         // the ground disc has UVs 0…1 over its 160 m diameter
@@ -143,7 +154,7 @@ export function Environment({ style, groundOpacity = 1, shelter }: { style: Proj
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.25, 0]} receiveShadow material={ground}>
                 <circleGeometry args={[80, 64]} />
             </mesh>
-            {weather && weather.snow > 0 && groundOpacity >= 1 && <SnowCover amount={weather.snow} />}
+            {snowCover > 0 && groundOpacity >= 1 && <SnowCover amount={snowCover} />}
         </>
     );
 }
@@ -181,11 +192,11 @@ function FlashBackground({ color, flash }: { color: string; flash: { current: nu
     return null;
 }
 
-/** A thin, partly transparent snow layer on the ground while it snows. */
+/** Snow on the ground: a dusting lets the ground show through, deep snow covers it. */
 function SnowCover({ amount }: { amount: number }) {
-    const material = useMemo(() => surfaceMaterial('snow', '#f3f6f9', 160, { roughness: 1, transparent: true, depthWrite: false }), []);
+    const material = useMemo(() => snowMaterial(160), []);
     useEffect(() => () => material.dispose(), [material]);
-    material.opacity = 0.35 + 0.5 * Math.min(1, amount);
+    material.opacity = snowOpacity(amount);
     return (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.24, 0]} receiveShadow material={material} renderOrder={1}>
             <circleGeometry args={[80, 64]} />

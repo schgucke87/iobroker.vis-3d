@@ -430,3 +430,4 @@ button.link { border: none; background: none; color: var(--accent); padding: 0 4
     padding: 5px 8px;
     font-size: 12px;
 }
+.panel .sub-head { margin: 10px 0 0; font-size: 12px; font-weight: 600; }

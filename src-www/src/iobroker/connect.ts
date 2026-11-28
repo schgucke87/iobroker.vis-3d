@@ -138,5 +138,6 @@ export function projectStateIds(p: Project): Set<string> {
         }
     }
     if (p.style?.weather === 'live' && p.style.weatherChannel) weatherIds(p.style.weatherChannel).forEach(id => ids.add(id));
+    if (p.style?.weather === 'live' && p.style.snowStateId) ids.add(p.style.snowStateId);
     return ids;
 }

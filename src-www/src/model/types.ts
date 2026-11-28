@@ -269,6 +269,10 @@ export interface ProjectStyle {
     weather: WeatherMode;
     /** daswetter hour channel for live weather, e.g. daswetter.0.location_1.ForecastHourly.Current */
     weatherChannel?: string;
+    /** Lying snow from Open-Meteo's modelled snow depth (sends the ioBroker location there). */
+    snowOpenMeteo?: boolean;
+    /** Datapoint for lying snow: boolean (snow yes/no) or depth in cm; takes priority over Open-Meteo. */
+    snowStateId?: string;
 }
 
 export interface Project {

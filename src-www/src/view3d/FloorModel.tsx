@@ -6,7 +6,7 @@ import type { DetectedRoom, Floor, Opening, ProjectStyle } from '../model/types'
 import { computeWallGeometry, clampOpening, pointOnWall, type WallFrame } from '../geometry/walls';
 import { detectRooms, wallSideRooms } from '../geometry/rooms';
 import { buildPrism, buildWallGeometry, yawFor } from '../geometry/mesh';
-import { surfaceMaterial } from './textures';
+import { snowMaterial, snowOpacity, surfaceMaterial } from './textures';
 import { roofFrame, roofHeightAt, wallTopProfile } from '../geometry/roof';
 import { DEFAULT_STYLE } from '../model/style';
 import { useStateValue } from '../iobroker/connect';
@@ -24,6 +24,8 @@ export interface FloorModelProps {
     style?: ProjectStyle;
     /** Colour room floors by temperature. */
     heatmap?: boolean;
+    /** Lying snow 0…1: covers the areas of a garden floor. */
+    snow?: number;
     selectedWallId?: string;
     hoverRoom?: number | null;
     onFloorClick?: (e: ThreeEvent<MouseEvent>) => void;
@@ -227,6 +229,7 @@ export function FloorModel(props: FloorModelProps) {
                     onPointerOut={props.onRoomHover ? () => props.onRoomHover!(null) : undefined}
                 />
             ))}
+            {floor.kind === 'outdoor' && (props.snow ?? 0) > 0 && <AreaSnow geometries={roomGeos} amount={props.snow!} opacity={opacity} />}
             {Object.values(geometry.frames).flatMap(fr =>
                 fr.wall.openings.map(o => <OpeningModel key={o.id} frame={fr} opening={o} mats={mats} />),
             )}
@@ -362,5 +365,19 @@ function OpeningModel({ frame, opening, mats }: { frame: WallFrame; opening: Ope
                 </group>
             )}
         </group>
+    );
+}
+
+/** Snow lying on the garden areas (terraces, paths …). */
+function AreaSnow({ geometries, amount, opacity }: { geometries: THREE.BufferGeometry[]; amount: number; opacity: number }) {
+    const material = useMemo(() => snowMaterial(1), []);
+    useEffect(() => () => material.dispose(), [material]);
+    material.opacity = snowOpacity(amount) * opacity;
+    return (
+        <>
+            {geometries.map((g, i) => (
+                <mesh key={i} geometry={g} material={material} position={[0, 0.012, 0]} receiveShadow raycast={() => null} renderOrder={1} />
+            ))}
+        </>
     );
 }

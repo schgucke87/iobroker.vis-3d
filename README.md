@@ -116,6 +116,10 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
   fallen mit Windrichtung und -stärke schräg. Die Datenquelle (`daswetter.0.location_N.ForecastHourly.Current`, sonst
   `Hour_1`) wird automatisch gefunden – am genauesten mit der daswetter-Option „Aktuelle Stunde kopieren“.
   Alternativ feste Vorschau: sonnig, wolkig, bedeckt, Regen, Starkregen, Gewitter, Schnee, Nebel
+- **Schneedecke**: liegender Schnee auf Grundstück, Gartenbereichen (Terrassen …) und Dächern (steile Dachflächen
+  bleiben frei) – eine dünne Schicht lässt den Boden durchscheinen, ab ca. 5 cm ist alles weiß. Quelle: ein eigener
+  Datenpunkt (wahr/falsch oder Schneehöhe in cm, hat Vorrang) und/oder die berechnete Schneehöhe von
+  [Open-Meteo](https://open-meteo.com) für den ioBroker-Standort (optional, überträgt die Koordinaten an Open-Meteo)
 - Grundstück: Rasen, Kies, Pflaster, Schnee oder einfarbig, in beliebiger Farbe
 - Wände: Standardfarbe innen und außen (Fassade) – welche Wandseite außen liegt, wird automatisch erkannt;
   jede Wandseite lässt sich einzeln färben (im Panel nach dem angrenzenden Raum benannt)
@@ -189,6 +193,7 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] Dächer und Dachboden
 - [x] Gauben, Dachfenster, Keller, Garten mit Bereichen
 - [x] Live-Wetter (daswetter), Dach in der Explosionsansicht
+- [x] Schneedecke (Datenpunkt / Open-Meteo)
 - [ ] Dächer für L-/U-förmige Grundrisse (bisher: Rechteck um die Außenwände)
 - [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht

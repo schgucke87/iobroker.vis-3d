@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import type { Floor } from '../model/types';
 import { roofFrame, roofPlanes, ROOF_THICKNESS } from '../geometry/roof';
 import { buildRoofGeometry } from '../geometry/mesh';
-import { surfaceMaterial } from './textures';
+import { snowMaterial, snowOpacity, surfaceMaterial } from './textures';
 import { RoofFeatures3D, type FeatureMaterials } from './RoofFeatures3D';
 
 /**
@@ -18,6 +18,8 @@ export function Roof3D(props: {
     state: 'closed' | 'open' | 'hidden';
     /** Explosion view: the roof slopes move apart, outwards and down their slope. */
     spread?: boolean;
+    /** Lying snow 0…1. */
+    snow?: number;
     /** Colour of the dormer walls (the facade colour). */
     wallColor?: string;
     onClick?: (e: ThreeEvent<MouseEvent>) => void;
@@ -27,9 +29,16 @@ export function Roof3D(props: {
     // one mesh per roof plane, so the slopes can fold apart in the explosion view
     const parts = useMemo(() => {
         if (!frame) return null;
-        return roofPlanes(frame).map(plane => ({ geometry: buildRoofGeometry([plane], ROOF_THICKNESS), dir: outward(plane.points) }));
+        return roofPlanes(frame).map(plane => ({
+            geometry: buildRoofGeometry([plane], ROOF_THICKNESS),
+            dir: outward(plane.points),
+            snow: snowLayer(plane.points),
+        }));
     }, [frame]);
-    useEffect(() => () => parts?.forEach(p => p.geometry.dispose()), [parts]);
+    useEffect(() => () => parts?.forEach(p => (p.geometry.dispose(), p.snow?.dispose())), [parts]);
+    const snowMat = useMemo(() => snowMaterial(1), []);
+    useEffect(() => () => snowMat.dispose(), [snowMat]);
+    const snow = props.snow ?? 0;
     const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
     const spread = useRef(props.spread ? 1 : 0);
     const color = floor.roof?.color ?? '#8e4636';
@@ -79,6 +88,7 @@ export function Roof3D(props: {
             }
             m.opacity = a.opacity;
         }
+        snowMat.opacity = snowOpacity(snow) * a.opacity;
         extra.glass.opacity = 0.45 * a.opacity;
         extra.glassOpen.opacity = 0.6 * a.opacity;
         extra.glassTilted.opacity = 0.6 * a.opacity;
@@ -88,7 +98,9 @@ export function Roof3D(props: {
     return (
         <group ref={group} position={[0, props.elevation + props.offset, 0]}>
             {parts.map((p, i) => (
-                <mesh key={i} ref={el => void (planeRefs.current[i] = el)} geometry={p.geometry} material={material} castShadow receiveShadow onClick={props.onClick} />
+                <mesh key={i} ref={el => void (planeRefs.current[i] = el)} geometry={p.geometry} material={material} castShadow receiveShadow onClick={props.onClick}>
+                    {snow > 0 && p.snow && <mesh geometry={p.snow} material={snowMat} receiveShadow raycast={() => null} renderOrder={1} />}
+                </mesh>
             ))}
             {frame && floor.roof?.features?.length ? (
                 <RoofFeatures3D frame={frame} features={floor.roof.features} mats={{ roof: material, ...extra }} spread={spread} spreadBy={SPREAD} />
@@ -107,4 +119,14 @@ function outward(points: [number, number, number][]): [number, number] {
     if (n.y < 0) n.negate();
     const h = Math.hypot(n.x, n.z);
     return h < 0.05 ? [0, 0] : [n.x / h, n.z / h];
+}
+
+/** Snow on a roof plane: a thin layer on its top face; steep planes (over ~55°) stay bare, the snow slides off. */
+function snowLayer(points: [number, number, number][]): THREE.BufferGeometry | null {
+    const v = points.map(p => new THREE.Vector3(...p));
+    const n = new THREE.Vector3().subVectors(v[1], v[0]).cross(new THREE.Vector3().subVectors(v[2], v[0])).normalize();
+    if (n.y < 0) n.negate();
+    if (n.y < 0.57) return null;
+    const lifted = v.map(p => p.clone().addScaledVector(n, ROOF_THICKNESS + 0.004));
+    return buildRoofGeometry([{ points: lifted.map(p => [p.x, p.y, p.z] as [number, number, number]) }], 0.05);
 }

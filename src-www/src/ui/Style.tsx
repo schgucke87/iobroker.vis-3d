@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react';
 import { findWeatherChannels, WEATHER_MODES, weatherSummary, type WeatherMode } from '../model/weather';
 import { useWeather } from '../view3d/Weather3D';
 import { useConnection } from '../iobroker/connect';
+import { useSnowCover } from '../view3d/useSnowCover';
+import { StateIdField } from './Datapoints';
 
 /** Colour picker with a row of suggested colours and an optional "default" reset. */
 export function ColorField(props: {
@@ -214,9 +216,51 @@ function WeatherSettings() {
                             </>
                         )}
                     </div>
+                    <SnowSettings />
                 </>
             )}
             {style.weather !== 'off' && style.weather !== 'live' && <div className="hint-small">Vorschau – das Wetter bleibt fest eingestellt.</div>}
+        </>
+    );
+}
+
+/** Where vis-3d learns whether snow lies outside. */
+function SnowSettings() {
+    const project = useEditor(s => s.project);
+    const style = projectStyle(project);
+    const set = useEditor.getState().updateStyle;
+    const cover = useSnowCover(style);
+    const depth = cover.depthCm !== undefined ? `${cover.depthCm.toLocaleString('de-DE', { maximumFractionDigits: 1 })} cm` : '';
+    const status =
+        cover.source === 'datapoint'
+            ? `Schnee laut Datenpunkt: ${cover.depthCm ? depth : 'keiner'}`
+            : cover.source === 'openmeteo'
+              ? `Schneehöhe laut Open-Meteo: ${depth}${cover.time ? ` (Stand ${cover.time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr)` : ''}`
+              : cover.source === 'falling'
+                ? 'Es schneit – leichte Schneedecke.'
+                : 'Kein Schnee liegt.';
+    return (
+        <>
+            <h4 className="sub-head">Schneedecke</h4>
+            <label className="field check">
+                <input type="checkbox" checked={!!style.snowOpenMeteo} onChange={e => set({ snowOpenMeteo: e.target.checked || undefined })} />
+                <span>Schneehöhe von Open-Meteo abrufen</span>
+            </label>
+            <div className="hint-small">
+                Fragt alle 30 Minuten die berechnete Schneehöhe für den Standort aus den ioBroker-Systemeinstellungen ab
+                (api.open-meteo.com, kostenlos, ohne Anmeldung). Dabei werden die Koordinaten an Open-Meteo übertragen.
+            </div>
+            <StateIdField label="Datenpunkt (hat Vorrang)" value={style.snowStateId} onChange={id => set({ snowStateId: id || undefined })} />
+            <div className="hint-small">Wahr/falsch für „Schnee liegt“ oder eine Zahl für die Schneehöhe in cm, z. B. von einer Wetterstation.</div>
+            <div className="hint-small">
+                {status}
+                {cover.error && (
+                    <>
+                        <br />
+                        Open-Meteo: {cover.error}
+                    </>
+                )}
+            </div>
         </>
     );
 }

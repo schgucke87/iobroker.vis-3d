@@ -8,6 +8,7 @@ import { FloorModel } from './FloorModel';
 import { Roof3D } from './Roof3D';
 import { roofFrame, roofTop } from '../geometry/roof';
 import { Environment } from './Environment';
+import { useSnowCover } from './useSnowCover';
 import { projectStyle } from '../model/style';
 import { ObjectInstance } from './Objects3D';
 import { computePlacement } from '../geometry/placement';
@@ -78,6 +79,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     const settings = useEditor(s => s.settings);
     const heatmap = useEditor(s => s.heatmap);
     const style = useMemo(() => projectStyle(project), [project]);
+    const snow = useSnowCover(style).amount;
     const [selectedGroup, setSelectedGroup] = useState<THREE.Group | null>(null);
     const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
 
@@ -190,7 +192,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     return (
         <Canvas shadows camera={{ position: [18, 16, 22], fov: 40, near: 0.1, far: 500 }} onPointerMissed={() => setHover(null)}>
             {/* the ground hides the basement: fade it out while a basement is selected */}
-            <Environment style={style} groundOpacity={focusKind === 'basement' ? 0.12 : 1} shelter={shelter} />
+            <Environment style={style} groundOpacity={focusKind === 'basement' ? 0.12 : 1} shelter={shelter} snowCover={snow} />
 
             {project.floors.map((f, i) => {
                 // everything above the selected floor is hidden (by height, so the garden and the
@@ -208,6 +210,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                             offset={offsets[i] + roofLift[i]}
                             state={roofState}
                             spread={roofLift[i] > 0}
+                            snow={snow}
                             wallColor={style.wallExterior}
                             onClick={
                                 roofState === 'closed'
@@ -229,6 +232,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                         showLabels={isFocus}
                         style={style}
                         heatmap={heatmap}
+                        snow={snow}
                         selectedWallId={isFocus || focusIndex < 0 ? selectedWallId : undefined}
                         hoverRoom={hover?.floor === f.id && !placing ? hover.room : null}
                         onFloorClick={

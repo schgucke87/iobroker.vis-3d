@@ -239,3 +239,11 @@ export function surfaceMaterial(pattern: Pattern, color: string, uvMetres = 1, e
     map.repeat.set(uvMetres / tex.metres, uvMetres / tex.metres);
     return new THREE.MeshStandardMaterial({ map, roughness: pattern === 'tiles' ? 0.45 : 0.85, ...extra });
 }
+
+/** Snow layer material for ground, garden areas and roofs; its opacity follows the amount of snow. */
+export function snowMaterial(uvMetres = 1): THREE.MeshStandardMaterial {
+    return surfaceMaterial('snow', '#f3f6f9', uvMetres, { roughness: 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+}
+
+/** Opacity of a snow layer for 0…1 snow: a dusting is see-through, from about 5 cm it is closed. */
+export const snowOpacity = (amount: number) => (amount <= 0 ? 0 : Math.min(1, 0.3 + amount * 0.85));
