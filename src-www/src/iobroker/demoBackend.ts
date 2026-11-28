@@ -74,7 +74,23 @@ const POINTS: DemoPoint[] = [
     // Hue lamps, structured like the ioBroker Hue adapter creates them
     ...hueLamp('hue.nachttisch', 'Hue Nachttischlampe', 'Schlafzimmer', { on: true, level: 70, hue: 280, sat: 85, ct: 2700 }),
     ...hueLamp('hue.arbeitszimmer', 'Hue Ambiance Arbeitszimmer', 'Arbeitszimmer', { on: true, level: 90, ct: 5000 }),
+    // the current hour of the daswetter adapter (weather simulation); writable here to try out weather
+    ...weatherHour('daswetter.0.location_1.ForecastHourly.Current'),
 ];
+
+function weatherHour(base: string): DemoPoint[] {
+    const W = (s: string, name: string, role: string, type: DemoPoint['type'], val: StateValue, extra: Partial<DemoPoint> = {}) =>
+        P('', name, role, type, val, '', '', { id: `${base}.${s}`, write: true, ...extra });
+    return [
+        W('symbol_description', 'Wetter', 'weather.state', 'string', 'Leichter Regen'),
+        W('clouds', 'Bewölkung', 'value.clouds', 'number', 85, { unit: '%', min: 0, max: 100 }),
+        W('rain', 'Niederschlag', 'value.precipitation', 'number', 0.6, { unit: 'mm', min: 0, max: 20 }),
+        W('temperature', 'Temperatur', 'value.temperature', 'number', 8.5, { unit: '°C' }),
+        W('wind_speed', 'Windgeschwindigkeit', 'value.speed.wind', 'number', 18, { unit: 'km/h', min: 0, max: 120 }),
+        W('wind_direction', 'Windrichtung', 'weather.direction.wind', 'string', 'WSW'),
+        W('night', 'Nacht', 'state', 'boolean', false),
+    ];
+}
 
 /** Datapoints of a Hue lamp; with hue/sat it is a colour lamp, otherwise a white ambiance lamp. */
 function hueLamp(base: string, name: string, room: string, v: { on: boolean; level: number; ct: number; hue?: number; sat?: number }): DemoPoint[] {
@@ -150,8 +166,8 @@ export class DemoBackend implements Backend {
             write: p.write,
             min: p.min,
             max: p.max,
-            rooms: [p.room],
-            functions: [p.fn],
+            rooms: p.room ? [p.room] : [],
+            functions: p.fn ? [p.fn] : [],
         }));
     }
 
@@ -169,6 +185,7 @@ export class DemoBackend implements Backend {
             enums.set(id, e);
         };
         for (const p of POINTS) {
+            if (!p.room) continue; // weather data: no device
             objects[p.id] = {
                 _id: p.id,
                 type: 'state',
@@ -192,7 +209,7 @@ export class DemoBackend implements Backend {
 
     async listRooms(): Promise<EnumInfo[]> {
         const rooms = new Map<string, string[]>();
-        for (const p of POINTS) rooms.set(p.room, [...(rooms.get(p.room) ?? []), p.id]);
+        for (const p of POINTS) if (p.room) rooms.set(p.room, [...(rooms.get(p.room) ?? []), p.id]);
         return [...rooms].map(([name, members]) => ({ id: `enum.rooms.${slug(name)}`, name, members }));
     }
 }

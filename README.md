@@ -111,6 +111,11 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 **Gestaltung**
 - Himmel: **Tageszeit (live)** – Sonnenstand aus Uhrzeit und Standort (ioBroker-Systemeinstellungen), Licht und Himmel
   wechseln von Tag über Dämmerung zu Nacht; Nordrichtung des Grundrisses einstellbar – oder fest: einfarbig, Tag, Abendrot, Nacht
+- **Wetter (live)** aus dem Adapter [daswetter](https://github.com/rg-engineering/ioBroker.daswetter): Wolken dimmen die Sonne,
+  bei bedecktem Himmel wird er grau; Regen, Schnee (mit Schneedecke), Nebel und Gewitter mit Blitzen, Regen und Schnee
+  fallen mit Windrichtung und -stärke schräg. Die Datenquelle (`daswetter.0.location_N.ForecastHourly.Current`, sonst
+  `Hour_1`) wird automatisch gefunden – am genauesten mit der daswetter-Option „Aktuelle Stunde kopieren“.
+  Alternativ feste Vorschau: sonnig, wolkig, bedeckt, Regen, Starkregen, Gewitter, Schnee, Nebel
 - Grundstück: Rasen, Kies, Pflaster, Schnee oder einfarbig, in beliebiger Farbe
 - Wände: Standardfarbe innen und außen (Fassade) – welche Wandseite außen liegt, wird automatisch erkannt;
   jede Wandseite lässt sich einzeln färben (im Panel nach dem angrenzenden Raum benannt)
@@ -119,7 +124,7 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 
 **3D-Ansicht**
 - Gesamtes Gebäude → Stockwerk → Raum: Kamera fliegt jeweils weich auf das Ziel, obere Stockwerke werden ausgeblendet
-- Explosionsansicht (Stockwerke auseinandergezogen)
+- Explosionsansicht (Stockwerke auseinandergezogen, das Dach hebt ab und klappt auseinander)
 - Raumbeschriftungen, Fenster und Türen
 - Viewer-Modus ohne Editor (`index.html`) und Editor (`index.html?edit=1`)
 
@@ -183,6 +188,7 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] Lichtverhältnisse nach Tageszeit, Möbel-Editor (CAD)
 - [x] Dächer und Dachboden
 - [x] Gauben, Dachfenster, Keller, Garten mit Bereichen
+- [x] Live-Wetter (daswetter), Dach in der Explosionsansicht
 - [ ] Dächer für L-/U-förmige Grundrisse (bisher: Rechteck um die Außenwände)
 - [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht

@@ -13,6 +13,8 @@ import { ObjectInstance } from './Objects3D';
 import { computePlacement } from '../geometry/placement';
 
 const EXPLODE_GAP = 3.5;
+/** In the explosion view a roof also lifts off its storey by this much. */
+const ROOF_GAP = 2.2;
 const POLAR_BUILDING = THREE.MathUtils.degToRad(62);
 const POLAR_FLOOR = THREE.MathUtils.degToRad(38);
 const POLAR_ROOM = THREE.MathUtils.degToRad(42);
@@ -34,10 +36,10 @@ function storeyHeight(f: Floor): number {
     return rf ? Math.max(f.height, roofTop(rf)) : f.height;
 }
 
-function buildingBox(project: Project, offsets: number[], elevations: number[]): THREE.Box3 {
+function buildingBox(project: Project, offsets: number[], elevations: number[], roofLift: number[]): THREE.Box3 {
     const box = new THREE.Box3();
     project.floors.forEach((f, i) => {
-        const b = floorBox(f, elevations[i] + offsets[i] - f.slab, elevations[i] + offsets[i] + storeyHeight(f));
+        const b = floorBox(f, elevations[i] + offsets[i] - f.slab, elevations[i] + offsets[i] + storeyHeight(f) + roofLift[i]);
         if (b) box.union(b);
     });
     if (box.isEmpty()) box.set(new THREE.Vector3(-5, 0, -5), new THREE.Vector3(5, 3, 5));
@@ -90,11 +92,34 @@ export function Scene3D({ editable }: { editable: boolean }) {
         let r = 0;
         return project.floors.map(f => (f.kind === 'outdoor' ? 0 : r++));
     })();
-    const offsets = project.floors.map((f, i) => (explode && focusIndex < 0 && f.kind !== 'outdoor' ? storeyRank[i] * EXPLODE_GAP : 0));
+    // a roof lifts off its storey too, and the storeys above make room for it
+    const exploding = explode && focusIndex < 0;
+    const roofLift = project.floors.map(f => (exploding && f.roof && f.kind !== 'outdoor' ? ROOF_GAP : 0));
+    const offsets = (() => {
+        let extra = 0;
+        return project.floors.map((f, i) => {
+            if (!exploding || f.kind === 'outdoor') return 0;
+            const o = storeyRank[i] * EXPLODE_GAP + extra;
+            extra += roofLift[i];
+            return o;
+        });
+    })();
     const focusElevation = focusIndex >= 0 ? elevations[focusIndex] : Infinity;
     const focusKind = focusIndex >= 0 ? (project.floors[focusIndex].kind ?? 'normal') : null;
 
     useEffect(() => setFocusRoom(null), [focusFloorId]);
+
+    // the house keeps rain and snow out (not in the explosion view, where it is taken apart)
+    const shelter = useMemo(() => {
+        if (explode) return undefined;
+        const box = new THREE.Box3();
+        project.floors.forEach((f, i) => {
+            if (f.kind === 'outdoor') return;
+            const b = floorBox(f, elevations[i], elevations[i] + storeyHeight(f), 0.3);
+            if (b) box.union(b);
+        });
+        return box.isEmpty() ? undefined : { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, top: box.max.y };
+    }, [project, elevations, explode]);
 
     // Camera flights. Only re-run when the navigation target changes, not on every edit.
     // (the floor ids change when another project is loaded, which also re-fits the camera)
@@ -109,7 +134,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
         let box: THREE.Box3 | null;
         let polar: number;
         if (idx < 0) {
-            box = buildingBox(p, offsets, elevations);
+            box = buildingBox(p, offsets, elevations, roofLift);
             polar = POLAR_BUILDING;
         } else if (focusRoom) {
             const e = elevations[idx];
@@ -165,7 +190,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     return (
         <Canvas shadows camera={{ position: [18, 16, 22], fov: 40, near: 0.1, far: 500 }} onPointerMissed={() => setHover(null)}>
             {/* the ground hides the basement: fade it out while a basement is selected */}
-            <Environment style={style} groundOpacity={focusKind === 'basement' ? 0.12 : 1} />
+            <Environment style={style} groundOpacity={focusKind === 'basement' ? 0.12 : 1} shelter={shelter} />
 
             {project.floors.map((f, i) => {
                 // everything above the selected floor is hidden (by height, so the garden and the
@@ -180,8 +205,9 @@ export function Scene3D({ editable }: { editable: boolean }) {
                         <Roof3D
                             floor={f}
                             elevation={elevations[i]}
-                            offset={offsets[i]}
+                            offset={offsets[i] + roofLift[i]}
                             state={roofState}
+                            spread={roofLift[i] > 0}
                             wallColor={style.wallExterior}
                             onClick={
                                 roofState === 'closed'

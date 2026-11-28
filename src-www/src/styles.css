@@ -420,3 +420,13 @@ button.link { border: none; background: none; color: var(--accent); padding: 0 4
 .roof-feature.window polygon { fill: rgba(156, 199, 230, 0.45); }
 .roof-feature text { fill: #8a3f2c; pointer-events: none; }
 .roof-feature.selected polygon { stroke: var(--accent); stroke-width: 2.5; }
+
+.weather-chip {
+    margin-top: 6px;
+    max-width: 180px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+}

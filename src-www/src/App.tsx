@@ -11,6 +11,9 @@ import { demoProject } from './model/demo';
 import { useConnection } from './iobroker/connect';
 import { useSaveStatus } from './storage/saveStatus';
 import { storageLabel } from './storage/local';
+import { useWeather } from './view3d/Weather3D';
+import { projectStyle } from './model/style';
+import { weatherSummary } from './model/weather';
 
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
     { id: 'select', label: 'Auswählen', key: 'V', icon: '↖' },
@@ -214,8 +217,17 @@ function FloorNav({ editable = false }: { editable?: boolean }) {
             <button className={heatmap ? 'active' : ''} onClick={() => s().setHeatmap(!heatmap)} title="Räume nach Temperatur einfärben">
                 🌡 Heatmap
             </button>
+            <WeatherChip />
         </nav>
     );
+}
+
+/** Current weather shown by the scene (live or preset). */
+function WeatherChip() {
+    const project = useEditor(s => s.project);
+    const weather = useWeather(projectStyle(project));
+    if (!weather) return null;
+    return <div className="weather-chip">{weatherSummary(weather)}</div>;
 }
 
 function ViewerApp() {

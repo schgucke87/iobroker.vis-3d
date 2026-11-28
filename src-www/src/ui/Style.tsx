@@ -2,6 +2,10 @@ import { useEditor } from '../model/store';
 import { FLOOR_DEFAULT_COLOR, FLOOR_MATERIALS, GROUND_DEFAULT_COLOR, GROUND_MATERIALS, projectStyle, SKY_MODES, SWATCHES } from '../model/style';
 import type { FloorMaterial, GroundMaterial, SkyMode } from '../model/types';
 import { useLiveSun } from '../view3d/Environment';
+import { useEffect, useState } from 'react';
+import { findWeatherChannels, WEATHER_MODES, weatherSummary, type WeatherMode } from '../model/weather';
+import { useWeather } from '../view3d/Weather3D';
+import { useConnection } from '../iobroker/connect';
 
 /** Colour picker with a row of suggested colours and an optional "default" reset. */
 export function ColorField(props: {
@@ -77,6 +81,8 @@ export function StylePanel() {
             </label>
             <div className="hint-small">0° = Norden zeigt im Grundriss nach oben, 90° = nach rechts. Bestimmt, von wo die Sonne scheint.</div>
 
+            <WeatherSettings />
+
             <h3>Grundstück</h3>
             <label className="field">
                 <span>Oberfläche</span>
@@ -138,5 +144,79 @@ function LiveSunInfo() {
             Standort {live.location.latitude.toFixed(2)}° N, {live.location.longitude.toFixed(2)}° O{' '}
             {live.fromIoBroker ? '(aus den ioBroker-Systemeinstellungen)' : '(Standard – in den ioBroker-Systemeinstellungen keiner hinterlegt)'}
         </div>
+    );
+}
+
+/** Weather mode, the daswetter channel for live weather, and what it currently shows. */
+function WeatherSettings() {
+    const project = useEditor(s => s.project);
+    const style = projectStyle(project);
+    const set = useEditor.getState().updateStyle;
+    const backend = useConnection(s => s.backend);
+    const [channels, setChannels] = useState<string[] | null>(null);
+    const weather = useWeather(style);
+
+    useEffect(() => {
+        if (style.weather !== 'live' || !backend) return;
+        let alive = true;
+        void backend
+            .listDatapoints()
+            .then(list => {
+                if (!alive) return;
+                const found = findWeatherChannels(list.map(d => d.id));
+                setChannels(found);
+                const current = useEditor.getState().project.style?.weatherChannel;
+                if (!current && found.length) set({ weatherChannel: found[0] });
+            })
+            .catch(() => alive && setChannels([]));
+        return () => {
+            alive = false;
+        };
+    }, [style.weather, backend, set]);
+
+    const options = [...new Set([...(channels ?? []), ...(style.weatherChannel ? [style.weatherChannel] : [])])];
+    return (
+        <>
+            <h3>Wetter</h3>
+            <div className="chips">
+                {(Object.keys(WEATHER_MODES) as WeatherMode[]).map(m => (
+                    <button key={m} className={style.weather === m ? 'active' : ''} onClick={() => set({ weather: m })}>
+                        {WEATHER_MODES[m]}
+                    </button>
+                ))}
+            </div>
+            {style.weather === 'live' && (
+                <>
+                    {options.length > 0 ? (
+                        <label className="field">
+                            <span>Datenquelle</span>
+                            <select value={style.weatherChannel ?? ''} onChange={e => set({ weatherChannel: e.target.value || undefined })}>
+                                {options.map(c => (
+                                    <option key={c} value={c}>
+                                        {c.replace(/\.ForecastHourly\./, ' · ').replace('Current', 'aktuelle Stunde').replace('Hour_1', 'nächste Stunde')}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    ) : (
+                        <div className="hint-small">
+                            {channels === null
+                                ? 'Suche daswetter-Datenpunkte …'
+                                : 'Keine daswetter-Daten gefunden. Bitte den Adapter „daswetter“ installieren und einen Ort einrichten (stündliche Vorhersage aktivieren).'}
+                        </div>
+                    )}
+                    <div className="hint-small">
+                        {weather ? weatherSummary(weather) : style.weatherChannel ? 'Noch keine Werte empfangen.' : ''}
+                        {options.length > 0 && !style.weatherChannel?.endsWith('Current') && (
+                            <>
+                                <br />
+                                Tipp: In daswetter „Aktuelle Stunde kopieren“ aktivieren, dann wird genau die laufende Stunde verwendet.
+                            </>
+                        )}
+                    </div>
+                </>
+            )}
+            {style.weather !== 'off' && style.weather !== 'live' && <div className="hint-small">Vorschau – das Wetter bleibt fest eingestellt.</div>}
+        </>
     );
 }

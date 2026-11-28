@@ -1,3 +1,4 @@
+import type { WeatherMode } from './weather';
 /**
  * Project data model.
  *
@@ -264,6 +265,10 @@ export interface ProjectStyle {
     skyColor: string;
     /** Where north points in the floor plan, degrees clockwise from "up" (for the sun position). */
     northAngle: number;
+    /** Weather effects: off, live from the daswetter adapter, or a fixed preset. */
+    weather: WeatherMode;
+    /** daswetter hour channel for live weather, e.g. daswetter.0.location_1.ForecastHourly.Current */
+    weatherChannel?: string;
 }
 
 export interface Project {

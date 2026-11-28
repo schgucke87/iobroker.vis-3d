@@ -16,14 +16,22 @@ export function Roof3D(props: {
     elevation: number;
     offset: number;
     state: 'closed' | 'open' | 'hidden';
+    /** Explosion view: the roof slopes move apart, outwards and down their slope. */
+    spread?: boolean;
     /** Colour of the dormer walls (the facade colour). */
     wallColor?: string;
     onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }) {
     const { floor } = props;
     const frame = useMemo(() => roofFrame(floor), [floor]);
-    const geometry = useMemo(() => (frame ? buildRoofGeometry(roofPlanes(frame), ROOF_THICKNESS) : null), [frame]);
-    useEffect(() => () => geometry?.dispose(), [geometry]);
+    // one mesh per roof plane, so the slopes can fold apart in the explosion view
+    const parts = useMemo(() => {
+        if (!frame) return null;
+        return roofPlanes(frame).map(plane => ({ geometry: buildRoofGeometry([plane], ROOF_THICKNESS), dir: outward(plane.points) }));
+    }, [frame]);
+    useEffect(() => () => parts?.forEach(p => p.geometry.dispose()), [parts]);
+    const planeRefs = useRef<(THREE.Mesh | null)[]>([]);
+    const spread = useRef(props.spread ? 1 : 0);
     const color = floor.roof?.color ?? '#8e4636';
     const material = useMemo(() => surfaceMaterial(floor.roof?.type === 'flat' ? 'gravel' : 'rooftiles', color, 1, { roughness: 0.8, side: THREE.DoubleSide }), [color, floor.roof?.type]);
     useEffect(() => () => material.dispose(), [material]);
@@ -54,6 +62,8 @@ export function Roof3D(props: {
         a.offset += (props.offset - a.offset) * k;
         if (Math.abs(a.opacity - opacity) < 1e-3) a.opacity = opacity;
         g.position.y = props.elevation + a.offset + a.lift * 3;
+        spread.current += ((props.spread ? 1 : 0) - spread.current) * k;
+        parts?.forEach((p, i) => planeRefs.current[i]?.position.set(p.dir[0] * spread.current * SPREAD, 0, p.dir[1] * spread.current * SPREAD));
         g.visible = a.opacity > 0.01;
         const transparent = a.opacity < 0.999;
         if (material.transparent !== transparent) {
@@ -74,11 +84,27 @@ export function Roof3D(props: {
         extra.glassTilted.opacity = 0.6 * a.opacity;
     });
 
-    if (!geometry) return null;
+    if (!parts) return null;
     return (
         <group ref={group} position={[0, props.elevation + props.offset, 0]}>
-            <mesh geometry={geometry} material={material} castShadow receiveShadow onClick={props.onClick} />
-            {frame && floor.roof?.features?.length ? <RoofFeatures3D frame={frame} features={floor.roof.features} mats={{ roof: material, ...extra }} /> : null}
+            {parts.map((p, i) => (
+                <mesh key={i} ref={el => void (planeRefs.current[i] = el)} geometry={p.geometry} material={material} castShadow receiveShadow onClick={props.onClick} />
+            ))}
+            {frame && floor.roof?.features?.length ? (
+                <RoofFeatures3D frame={frame} features={floor.roof.features} mats={{ roof: material, ...extra }} spread={spread} spreadBy={SPREAD} />
+            ) : null}
         </group>
     );
+}
+
+/** How far the slopes fold apart in the explosion view (m). */
+const SPREAD = 1.3;
+
+/** Horizontal direction a roof plane faces (down its slope); none for a flat roof. */
+function outward(points: [number, number, number][]): [number, number] {
+    const [a, b, c] = points.map(p => new THREE.Vector3(...p));
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+    if (n.y < 0) n.negate();
+    const h = Math.hypot(n.x, n.z);
+    return h < 0.05 ? [0, 0] : [n.x / h, n.z / h];
 }

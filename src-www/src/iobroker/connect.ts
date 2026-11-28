@@ -3,6 +3,7 @@ import type { Backend, StateInfo, StateValue } from './backend';
 import { DemoBackend } from './demoBackend';
 import type { Project } from '../model/types';
 import { behaviorStateIds } from '../model/behaviors';
+import { weatherIds } from '../model/weather';
 
 /**
  * Chooses the data source at startup:
@@ -136,5 +137,6 @@ export function projectStateIds(p: Project): Set<string> {
             if (r.humidityId) ids.add(r.humidityId);
         }
     }
+    if (p.style?.weather === 'live' && p.style.weatherChannel) weatherIds(p.style.weatherChannel).forEach(id => ids.add(id));
     return ids;
 }

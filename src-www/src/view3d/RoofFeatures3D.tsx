@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { RoofFeature } from '../model/types';
 import type { RoofFrame } from '../geometry/roof';
@@ -17,14 +18,39 @@ export interface FeatureMaterials {
 }
 
 /** Roof windows and dormers of a roof, in the storey's coordinate frame. */
-export function RoofFeatures3D({ frame, features, mats }: { frame: RoofFrame; features: RoofFeature[]; mats: FeatureMaterials }) {
+export function RoofFeatures3D({
+    frame,
+    features,
+    mats,
+    spread,
+    spreadBy = 0,
+}: {
+    frame: RoofFrame;
+    features: RoofFeature[];
+    mats: FeatureMaterials;
+    /** 0…1: how far the roof planes have moved apart (explosion view); features move with their plane. */
+    spread?: { current: number };
+    spreadBy?: number;
+}) {
     return (
         <>
-            {features.map(f =>
-                f.type === 'window' ? <RoofWindow key={f.id} frame={frame} feature={f} mats={mats} /> : <Dormer key={f.id} frame={frame} feature={f} mats={mats} />,
-            )}
+            {features.map(f => (
+                <Spread key={f.id} frame={frame} feature={f} spread={spread} by={spreadBy}>
+                    {f.type === 'window' ? <RoofWindow frame={frame} feature={f} mats={mats} /> : <Dormer frame={frame} feature={f} mats={mats} />}
+                </Spread>
+            ))}
         </>
     );
+}
+
+function Spread({ frame, feature, spread, by, children }: { frame: RoofFrame; feature: RoofFeature; spread?: { current: number }; by: number; children: ReactNode }) {
+    const ref = useRef<THREE.Group>(null);
+    const dir = useMemo(() => (frame.roof.type === 'flat' ? [0, 0] : roofPointAt(frame, [feature.x, feature.y]).downhill), [frame, feature.x, feature.y]);
+    useFrame(() => {
+        const s = (spread?.current ?? 0) * by;
+        ref.current?.position.set(dir[0] * s, 0, dir[1] * s);
+    });
+    return <group ref={ref}>{children}</group>;
 }
 
 function useContact(f: RoofFeature) {
