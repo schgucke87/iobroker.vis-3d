@@ -4,7 +4,8 @@ import { App } from './App';
 import { useEditor } from './model/store';
 import { loadLocal, loadProject, saveProject, useFileStore } from './storage/local';
 import { demoProject } from './model/demo';
-import { initBackend, projectStateIds, syncSubscriptions } from './iobroker/connect';
+import * as THREE from 'three';
+import { initBackend, projectStateIds, syncSubscriptions, useConnection } from './iobroker/connect';
 import { useSaveStatus } from './storage/saveStatus';
 import './styles.css';
 
@@ -13,9 +14,7 @@ const edit = params.has('edit');
 
 // ?debug exposes the stores for troubleshooting in the browser console (and for UI tests)
 if (params.has('debug')) {
-    void Promise.all([import('three'), import('./iobroker/connect')]).then(([THREE, conn]) => {
-        Object.assign(window, { __vis3d: { ...(window as { __vis3d?: object }).__vis3d, THREE, useEditor, useConnection: conn.useConnection } });
-    });
+    Object.assign(window, { __vis3d: { ...(window as { __vis3d?: object }).__vis3d, THREE, useEditor, useConnection } });
 }
 
 async function start() {

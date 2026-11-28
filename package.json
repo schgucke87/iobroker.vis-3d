@@ -29,7 +29,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "release": "npm run build && node scripts/make-release.mjs"
   },
   "devDependencies": {
     "@iobroker/socket-client": "^5.7.0",

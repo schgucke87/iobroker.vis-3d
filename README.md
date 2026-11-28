@@ -11,16 +11,19 @@ Voraussetzungen: der **web**-Adapter ist installiert (vis-3d wird von ihm unter 
 **Über den Admin (empfohlen):**
 
 1. Admin → *Adapter* → Symbol mit der Katze („Installieren aus eigener URL“) → Reiter *Benutzerdefiniert*
-2. URL eintragen: `https://github.com/schgucke87/iobroker.vis-3d` → *Installieren*
-3. Warten, bis die Installation fertig ist – dabei wird das Frontend gebaut (auf einem Raspberry Pi einige Minuten)
-4. Bei *vis-3d* in der Adapterliste mit **+** eine Instanz anlegen (sie legt den Speicherort für die Projektdateien an)
+2. URL eintragen: `https://github.com/schgucke87/iobroker.vis-3d/tree/release` → *Installieren*
+3. Bei *vis-3d* in der Adapterliste mit **+** eine Instanz anlegen (sie legt den Speicherort für die Projektdateien an)
+
+Der Branch `release` enthält das fertig gebaute Frontend (automatisch von einer GitHub Action bei jedem Push auf `main`
+erzeugt) – bei der Installation wird nichts gebaut und es werden keine Build-Werkzeuge geladen.
+Die Adresse ohne `/tree/release` funktioniert auch, baut das Frontend dann aber bei der Installation selbst.
 
 Ein **Update** ist derselbe Weg: URL erneut installieren, danach die Seite im Browser neu laden. Das Projekt bleibt erhalten.
 
 **Alternativ per Konsole:**
 
 ```bash
-iob url https://github.com/schgucke87/iobroker.vis-3d
+iob url https://github.com/schgucke87/iobroker.vis-3d/tree/release
 iob add vis-3d
 ```
 

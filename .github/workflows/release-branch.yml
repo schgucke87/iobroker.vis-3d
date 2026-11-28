@@ -1,0 +1,44 @@
+# Builds the frontend on every push to main and publishes the installable adapter
+# (built www/, no build step, no dev dependencies) to the "release" branch.
+# Install in ioBroker: https://github.com/<owner>/iobroker.vis-3d/tree/release
+name: release branch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-branch
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm ci runs the prepare script, which builds www/
+      - run: npm ci
+      - run: npm test
+
+      - name: Assemble release
+        run: node scripts/make-release.mjs ../release
+
+      - name: Push to the release branch
+        run: |
+          cd ../release
+          git init -q -b release
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Release build of ${GITHUB_SHA::7}" -m "Built from ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" release
