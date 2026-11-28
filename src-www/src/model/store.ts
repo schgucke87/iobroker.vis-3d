@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import type { AssetMeta, Floor, Opening, Project, ProjectStyle, RoomMeta, SceneObject, Vec2, Wall } from './types';
 import * as ops from './ops';
-import { detectRooms } from '../geometry/rooms';
+import { detectRooms, wallSideRooms } from '../geometry/rooms';
+import { computeWallGeometry } from '../geometry/walls';
+import { DEFAULT_ROOF } from '../geometry/roof';
 import { pointInPolygon } from '../geometry/vec';
 import { builtinAssets } from '../assets/builtin';
 
@@ -55,9 +57,14 @@ export interface EditorState {
 
     setActiveFloor(id: string): void;
     addFloor(): void;
+    /**
+     * Adds an attic on top: knee walls (1 m) along the outer walls of the top
+     * storey and a gable roof; a roof of the storey below moves up.
+     */
+    addAttic(): void;
     removeFloor(id: string): void;
     moveFloor(id: string, dir: -1 | 1): void;
-    updateFloor(id: string, patch: Partial<Pick<Floor, 'name' | 'height' | 'slab' | 'background'>>): void;
+    updateFloor(id: string, patch: Partial<Pick<Floor, 'name' | 'height' | 'slab' | 'background' | 'roof'>>): void;
 
     /** Runs a mutation on a copy of the active floor and commits it. */
     editFloor<T>(fn: (floor: Floor) => T): T;
@@ -169,6 +176,31 @@ export const useEditor = create<EditorState>()(
                     }
                     f.objects = {};
                     set({ project: { ...s.project, floors: [...s.project.floors, f] }, activeFloorId: f.id, focusFloorId: f.id, selection: null });
+                },
+                addAttic: () => {
+                    const s = get();
+                    const below = s.project.floors[s.project.floors.length - 1];
+                    const attic = newFloor('Dachboden');
+                    attic.height = 1.0;
+                    if (below) {
+                        // only the outer walls: walls with the outside on one side
+                        const frames = computeWallGeometry(below).frames;
+                        const sides = wallSideRooms(frames, detectRooms(below));
+                        for (const w of Object.values(below.walls)) {
+                            const side = sides[w.id];
+                            if (side && side.left && side.right) continue;
+                            for (const id of [w.a, w.b]) attic.nodes[id] = { ...below.nodes[id] };
+                            attic.walls[w.id] = { ...w, height: attic.height, openings: [], colorLeft: undefined, colorRight: undefined };
+                        }
+                    }
+                    attic.roof = { ...(below?.roof ?? DEFAULT_ROOF) };
+                    const floors = s.project.floors.map(f => (f === below && f.roof ? { ...f, roof: undefined } : f));
+                    set({
+                        project: { ...s.project, floors: [...floors, attic] },
+                        activeFloorId: attic.id,
+                        focusFloorId: attic.id,
+                        selection: null,
+                    });
                 },
                 removeFloor: id => {
                     const s = get();

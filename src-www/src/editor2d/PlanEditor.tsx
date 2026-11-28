@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DetectedRoom, Floor, Vec2 } from '../model/types';
 import { activeFloor, findAsset, useEditor } from '../model/store';
 import { computePlacement, objectAxes, objectFootprint } from '../geometry/placement';
+import { roofCreases, roofFrame, roofOutline } from '../geometry/roof';
 import * as ops from '../model/ops';
 import { computeWallGeometry, clampOpening, openingRange, pointOnWall, type WallFrame } from '../geometry/walls';
 import { detectRooms } from '../geometry/rooms';
@@ -52,6 +53,7 @@ export function PlanEditor() {
     const fitted = useRef<string | null>(null);
 
     const geometry = useMemo(() => computeWallGeometry(floor), [floor]);
+    const roof = useMemo(() => roofFrame(floor), [floor]);
     const rooms = useMemo(() => detectRooms(floor), [floor]);
     const mpp = 1 / view.s;
 
@@ -535,6 +537,15 @@ export function PlanEditor() {
                         const selected = sel?.kind === 'opening' && sel.id === o.id;
                         return <OpeningSymbol key={o.id} frame={fr} u={o.offset} width={o.width} type={o.type} selected={selected} mpp={mpp} />;
                     }),
+                )}
+
+                {roof && (
+                    <g className="roof-plan">
+                        <polygon points={ptsAttr(roofOutline(roof))} />
+                        {roofCreases(roof).map(([a, b], i) => (
+                            <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+                        ))}
+                    </g>
                 )}
 
                 {objectsDrawn.map(({ o, asset }) => (

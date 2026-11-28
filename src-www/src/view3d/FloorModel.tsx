@@ -7,6 +7,7 @@ import { computeWallGeometry, clampOpening, pointOnWall, type WallFrame } from '
 import { detectRooms, wallSideRooms } from '../geometry/rooms';
 import { buildPrism, buildWallGeometry, yawFor } from '../geometry/mesh';
 import { surfaceMaterial } from './textures';
+import { roofFrame, roofHeightAt, wallTopProfile } from '../geometry/roof';
 import { DEFAULT_STYLE } from '../model/style';
 import { useStateValue } from '../iobroker/connect';
 import { formatValue, normalizeValue } from '../iobroker/backend';
@@ -53,13 +54,33 @@ export function FloorModel(props: FloorModelProps) {
     const rooms = useMemo(() => detectRooms(floor), [floor]);
     const sides = useMemo(() => wallSideRooms(geometry.frames, rooms), [geometry, rooms]);
 
+    const roof = useMemo(() => roofFrame(floor), [floor]);
+    /** Walls with the outside on one side: under a roof they rise up to it (gables). */
+    const exterior = (id: string) => !!sides[id] && (!sides[id].left || !sides[id].right);
     const wallGeos = useMemo(
-        () => Object.values(geometry.frames).map(fr => ({ id: fr.wall.id, geo: buildWallGeometry(fr, -floor.slab) })),
-        [geometry, floor.slab],
+        () =>
+            Object.values(geometry.frames).map(fr => {
+                // under a roof: exterior walls follow it, interior walls are cut off by the slopes
+                const top = roof ? wallTopProfile(roof, fr.start, fr.end, exterior(fr.wall.id) ? Infinity : fr.wall.height) : undefined;
+                return { id: fr.wall.id, geo: buildWallGeometry(fr, -floor.slab, top) };
+            }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [geometry, floor.slab, roof, sides],
     );
     const hubGeos = useMemo(
-        () => geometry.hubs.map(h => buildPrism(h.polygon, -floor.slab, h.height)),
-        [geometry, floor.slab],
+        () =>
+            geometry.hubs.map(h => {
+                let height = h.height;
+                if (roof) {
+                    const node = floor.nodes[h.nodeId];
+                    const under = roofHeightAt(roof, [node.x, node.y]);
+                    const onFacade = Object.values(floor.walls).some(w => (w.a === h.nodeId || w.b === h.nodeId) && exterior(w.id));
+                    height = onFacade ? under : Math.min(h.height, under);
+                }
+                return buildPrism(h.polygon, -floor.slab, height);
+            }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [geometry, floor.slab, roof, sides],
     );
     const roomGeos = useMemo(() => rooms.map(r => buildPrism(r.polygon, -floor.slab, 0)), [rooms, floor.slab]);
     useEffect(

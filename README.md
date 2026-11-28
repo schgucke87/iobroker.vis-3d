@@ -50,6 +50,16 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - Das darunterliegende Stockwerk wird gestrichelt eingeblendet
 - Rückgängig / Wiederholen (Strg+Z / Strg+Y)
 
+**Dach & Dachboden**
+- Dachformen: Satteldach, Walmdach, Pultdach, Zeltdach, Flachdach – mit Neigung, Dachüberstand, Firstrichtung und Farbe
+  (Ziegel-Optik, Flachdach mit Kies)
+- Das Dach gehört zu einem Geschoss und liegt auf dessen Wänden: Außenwände wachsen bis unters Dach (Giebel schließen sich
+  von selbst), Innenwände werden an der Schräge abgeschnitten
+- „+ Dachboden mit Dach“ legt ein Dachgeschoss mit 1 m Kniestock entlang der Außenwände und Satteldach an –
+  darin können Räume, Wände und Möbel wie in jedem anderen Geschoss angelegt werden
+- Wird das Geschoss ausgewählt, hebt sich das Dach ab und blendet aus; in der Gebäudeansicht ist es geschlossen
+- Im 2D-Plan zeigen gestrichelte Linien Dachrand und First/Grate
+
 **Modelle & Einrichtung**
 - Import von GLB/glTF, OBJ (+MTL), FBX und STL per Dateiauswahl oder Drag & Drop; Texturen und .bin-Dateien einfach mit auswählen
 - Import-Dialog mit 3D-Vorschau: Einheit (automatisch erkannt: m/cm/mm/Zoll), Z-up-Korrektur, Drehen, Zielmaße
@@ -162,6 +172,8 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] Automatische Vorschläge über `enum.rooms` + type-detector
 - [x] Hue- und Farb-Lichter in den Vorschlägen
 - [x] Lichtverhältnisse nach Tageszeit, Möbel-Editor (CAD)
+- [x] Dächer und Dachboden
+- [ ] Dächer für L-/U-förmige Grundrisse (bisher: Rechteck um die Außenwände), Gauben, Dachfenster
 - [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht
 

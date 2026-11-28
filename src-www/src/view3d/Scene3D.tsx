@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { findAsset, floorElevations, normalizeAngle, useEditor } from '../model/store';
 import type { DetectedRoom, Floor, Project, Vec2 } from '../model/types';
 import { FloorModel } from './FloorModel';
+import { Roof3D } from './Roof3D';
+import { roofFrame, roofTop } from '../geometry/roof';
 import { Environment } from './Environment';
 import { projectStyle } from '../model/style';
 import { ObjectInstance } from './Objects3D';
@@ -26,10 +28,16 @@ function floorBox(floor: Floor, y0: number, y1: number, pad = 0.5): THREE.Box3 |
     );
 }
 
+/** Height of a storey including its roof (gables reach up to the ridge). */
+function storeyHeight(f: Floor): number {
+    const rf = f.roof ? roofFrame(f) : null;
+    return rf ? Math.max(f.height, roofTop(rf)) : f.height;
+}
+
 function buildingBox(project: Project, offsets: number[], elevations: number[]): THREE.Box3 {
     const box = new THREE.Box3();
     project.floors.forEach((f, i) => {
-        const b = floorBox(f, elevations[i] + offsets[i] - f.slab, elevations[i] + offsets[i] + f.height);
+        const b = floorBox(f, elevations[i] + offsets[i] - f.slab, elevations[i] + offsets[i] + storeyHeight(f));
         if (b) box.union(b);
     });
     if (box.isEmpty()) box.set(new THREE.Vector3(-5, 0, -5), new THREE.Vector3(5, 3, 5));
@@ -107,7 +115,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
             polar = POLAR_ROOM;
         } else {
             const f = p.floors[idx];
-            box = floorBox(f, elevations[idx], elevations[idx] + f.height);
+            box = floorBox(f, elevations[idx], elevations[idx] + storeyHeight(f));
             polar = POLAR_FLOOR;
         }
         if (!box) return;
@@ -154,7 +162,27 @@ export function Scene3D({ editable }: { editable: boolean }) {
             {project.floors.map((f, i) => {
                 const hidden = focusIndex >= 0 && i > focusIndex;
                 const isFocus = i === focusIndex;
+                // the roof opens when its storey is selected, and disappears with the storey
+                const roofState = focusIndex < 0 || i < focusIndex ? 'closed' : isFocus ? 'open' : 'hidden';
                 return (
+                    <group key={f.id}>
+                    {f.roof && (
+                        <Roof3D
+                            floor={f}
+                            elevation={elevations[i]}
+                            offset={offsets[i]}
+                            state={roofState}
+                            onClick={
+                                roofState === 'closed'
+                                    ? e => {
+                                          e.stopPropagation();
+                                          if (editable) setActiveFloor(f.id);
+                                          else setFocusFloor(f.id);
+                                      }
+                                    : undefined
+                            }
+                        />
+                    )}
                     <FloorModel
                         key={f.id}
                         floor={f}
@@ -239,6 +267,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                             <ObjectInstance obj={{ ...placement, scale: [1, 1, 1] }} asset={placeAsset} ghost />
                         )}
                     </FloorModel>
+                    </group>
                 );
             })}
 

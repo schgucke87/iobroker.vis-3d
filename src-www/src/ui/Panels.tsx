@@ -10,7 +10,8 @@ import { listMaterials, loadAsset, type ModelMaterial } from '../assets/assetSto
 import { pointInPolygon } from '../geometry/vec';
 import { computeWallGeometry } from '../geometry/walls';
 import { readImageFile } from '../storage/local';
-import type { FloorMaterial, Opening } from '../model/types';
+import type { FloorMaterial, Opening, Roof, RoofType } from '../model/types';
+import { DEFAULT_ROOF, ROOF_TYPES, roofFrame, roofTop } from '../geometry/roof';
 
 function NumberField(props: { label: string; value: number; step?: number; min?: number; unit?: string; onChange: (v: number) => void }) {
     return (
@@ -59,6 +60,9 @@ export function FloorPanel() {
             ))}
             <button className="add" onClick={() => s().addFloor()}>
                 + Stockwerk hinzufügen
+            </button>
+            <button className="add" onClick={() => s().addAttic()} title="Neues Geschoss mit Kniestock-Außenwänden und Satteldach">
+                + Dachboden mit Dach
             </button>
         </div>
     );
@@ -216,6 +220,8 @@ export function PropertiesPanel() {
                     <button className="danger" disabled={floorsCount <= 1} onClick={() => confirm(`Stockwerk „${floor.name}“ löschen?`) && s().removeFloor(floor.id)}>
                         Stockwerk löschen
                     </button>
+
+                    <RoofProps />
 
                     <h3>Grundriss-Vorlage</h3>
                     {floor.background ? (
@@ -402,6 +408,66 @@ function ObjectColors({ id }: { id: string }) {
                 <button className="small" onClick={() => useEditor.getState().updateObject(id, { materialColors: undefined })}>
                     Alle Farben zurücksetzen
                 </button>
+            )}
+        </>
+    );
+}
+
+const ROOF_COLORS = ['#8e4636', '#a8553a', '#5c3b30', '#3f4247', '#5f6670', '#7d8a99', '#4f6b4a'];
+
+/** Roof of the active storey. */
+function RoofProps() {
+    const floor = useEditor(activeFloor);
+    const s = useEditor.getState;
+    const roof = floor.roof;
+    const set = (patch: Partial<Roof> | null) => s().updateFloor(floor.id, { roof: patch === null ? undefined : { ...(roof ?? DEFAULT_ROOF), ...patch } });
+    const frame = useMemo(() => (roof ? roofFrame(floor) : null), [floor, roof]);
+    return (
+        <>
+            <h3>Dach</h3>
+            <label className="field">
+                <span>Dachform</span>
+                <select value={roof?.type ?? ''} onChange={e => set(e.target.value ? { type: e.target.value as RoofType } : null)}>
+                    <option value="">Kein Dach</option>
+                    {(Object.keys(ROOF_TYPES) as RoofType[]).map(t => (
+                        <option key={t} value={t}>
+                            {ROOF_TYPES[t]}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {roof && (
+                <>
+                    {roof.type !== 'flat' && (
+                        <NumberField label="Neigung" unit="°" step={5} min={0} value={roof.pitch} onChange={v => set({ pitch: Math.min(75, Math.max(0, v)) })} />
+                    )}
+                    <NumberField label="Dachüberstand" unit="m" step={0.05} min={0} value={roof.overhang} onChange={v => set({ overhang: Math.max(0, v) })} />
+                    {(roof.type === 'gable' || roof.type === 'shed') && (
+                        <label className="field">
+                            <span>First</span>
+                            <select value={roof.ridge} onChange={e => set({ ridge: e.target.value as Roof['ridge'] })}>
+                                <option value="auto">entlang der langen Seite</option>
+                                <option value="x">waagerecht im Plan</option>
+                                <option value="y">senkrecht im Plan</option>
+                            </select>
+                        </label>
+                    )}
+                    {roof.type === 'shed' && (
+                        <label className="field check">
+                            <input type="checkbox" checked={!!roof.flip} onChange={e => set({ flip: e.target.checked })} />
+                            <span>Hohe Seite gegenüber</span>
+                        </label>
+                    )}
+                    <ColorField label="Farbe" value={roof.color} fallback={roof.color} swatches={ROOF_COLORS} onChange={c => c && set({ color: c })} />
+                    {frame && (
+                        <div className="info">
+                            Firsthöhe {(roofTop(frame) - floor.height).toFixed(2).replace('.', ',')} m über den Wänden · Traufe auf {floor.height.toFixed(2).replace('.', ',')} m (Raumhöhe = Kniestock)
+                        </div>
+                    )}
+                    <div className="hint-small">
+                        Außenwände wachsen bis unters Dach (Giebel), Innenwände werden an der Schräge abgeschnitten. Für einen Dachboden ein eigenes Geschoss mit niedriger Raumhöhe (Kniestock) anlegen.
+                    </div>
+                </>
             )}
         </>
     );

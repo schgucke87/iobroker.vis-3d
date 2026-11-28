@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import type { FloorMaterial, GroundMaterial } from '../model/types';
 
-type Pattern = FloorMaterial | GroundMaterial;
+type Pattern = FloorMaterial | GroundMaterial | 'rooftiles';
 
 const SIZE = 512;
 const cache = new Map<string, { texture: THREE.CanvasTexture; metres: number }>();
@@ -162,6 +162,40 @@ const DRAW: Record<Pattern, { metres: number; draw: (ctx: CanvasRenderingContext
                 }
             }
             noise(ctx, base, 0.08, 1200, 2, r);
+        },
+    },
+    rooftiles: {
+        // clay tiles: overlapping rows of rounded tiles, 33 cm per row
+        metres: 1.32,
+        draw(ctx, base, r) {
+            const rows = 4;
+            const cols = 6;
+            const h = SIZE / rows;
+            const w = SIZE / cols;
+            for (let row = 0; row < rows; row++) {
+                for (let c = -1; c <= cols; c++) {
+                    const x = c * w + (row % 2 ? w / 2 : 0);
+                    const y = row * h;
+                    const g = ctx.createLinearGradient(x, 0, x + w, 0);
+                    const tone = (r() - 0.5) * 0.12;
+                    g.addColorStop(0, shade(base, tone - 0.18));
+                    g.addColorStop(0.45, shade(base, tone + 0.08));
+                    g.addColorStop(1, shade(base, tone - 0.22));
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.moveTo(x + 2, y);
+                    ctx.lineTo(x + w - 2, y);
+                    ctx.lineTo(x + w - 2, y + h * 0.82);
+                    ctx.quadraticCurveTo(x + w / 2, y + h * 1.05, x + 2, y + h * 0.82);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                // shadow line of the row above
+                ctx.fillStyle = shade(base, -0.45);
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(0, row * h, SIZE, 3);
+                ctx.globalAlpha = 1;
+            }
         },
     },
     snow: {

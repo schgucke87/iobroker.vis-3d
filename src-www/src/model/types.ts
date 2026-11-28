@@ -175,6 +175,26 @@ export interface SceneObject {
     materialColors?: Record<string, string>;
 }
 
+export type RoofType = 'flat' | 'shed' | 'gable' | 'hip' | 'pyramid';
+
+/**
+ * A roof on top of a storey's walls. Its footprint is the bounding rectangle
+ * of the storey's outer walls; exterior walls rise up to the roof (gables
+ * close by themselves), interior walls are cut off by the slopes.
+ */
+export interface Roof {
+    type: RoofType;
+    /** Pitch in degrees. */
+    pitch: number;
+    /** Overhang beyond the outer walls, in metres. */
+    overhang: number;
+    /** Direction of the ridge: along the longer side (auto) or along plan x / y. */
+    ridge: 'auto' | 'x' | 'y';
+    /** Shed roof: the high side is the other one. */
+    flip?: boolean;
+    color: string;
+}
+
 export interface Floor {
     id: string;
     name: string;
@@ -187,6 +207,7 @@ export interface Floor {
     rooms: Record<string, RoomMeta>;
     objects: Record<string, SceneObject>;
     background?: BackgroundImage;
+    roof?: Roof;
 }
 
 export type FloorMaterial = 'plain' | 'wood' | 'tiles' | 'carpet' | 'stone';
