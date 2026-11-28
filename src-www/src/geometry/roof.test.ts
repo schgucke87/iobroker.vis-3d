@@ -95,3 +95,41 @@ describe('roof mesh', () => {
         expect(n1.y).toBeGreaterThan(0);
     });
 });
+
+describe('roof windows and dormers', () => {
+    it('finds the roof plane at a point: height, slope and downhill direction', async () => {
+        const { roofPointAt } = await import('./roofFeatures');
+        const f = roofFrame(house({}))!;
+        // on the side towards larger y the roof falls towards +y
+        const rp = roofPointAt(f, [5, 5]);
+        expect(rp.tan).toBeCloseTo(1, 3);
+        expect(rp.downhill[0]).toBeCloseTo(0, 3);
+        expect(rp.downhill[1]).toBeCloseTo(1, 3);
+        expect(rp.height).toBeCloseTo(1.0 + (6.2 - 5));
+        const other = roofPointAt(f, [5, 1]);
+        expect(other.downhill[1]).toBeCloseTo(-1, 3);
+    });
+
+    it('builds a shed dormer whose roof meets the main roof', async () => {
+        const { roofPointAt, dormerShape, DORMER_SHED_PITCH } = await import('./roofFeatures');
+        const f = roofFrame(house({}))!;
+        const rp = roofPointAt(f, [5, 5]);
+        const d = dormerShape(rp, { id: 'd', type: 'dormer', x: 5, y: 5, width: 1.6, frontHeight: 1.3, dormerRoof: 'shed' })!;
+        const tan2 = Math.tan((DORMER_SHED_PITCH * Math.PI) / 180);
+        expect(d.depth).toBeCloseTo(1.3 / (1 - tan2), 5);
+        // at the back the dormer roof is at the height of the main roof surface
+        const back = d.roof[0][2];
+        expect(back[1]).toBeCloseTo(rp.top + 1 * d.depth, 5);
+        expect(d.window[3]).toBeLessThan(d.front[2][1]);
+    });
+
+    it('builds gable dormers and refuses dormers on flat roofs', async () => {
+        const { roofPointAt, dormerShape } = await import('./roofFeatures');
+        const f = roofFrame(house({}))!;
+        const g = dormerShape(roofPointAt(f, [5, 5]), { id: 'd', type: 'dormer', x: 5, y: 5, width: 1.6, frontHeight: 1.2, dormerRoof: 'gable' })!;
+        expect(g.front.length).toBe(5);
+        expect(g.roof.length).toBe(2);
+        const flat = roofFrame(house({ type: 'flat' }))!;
+        expect(dormerShape(roofPointAt(flat, [5, 5]), { id: 'd', type: 'dormer', x: 5, y: 5, width: 1.6 })).toBeNull();
+    });
+});

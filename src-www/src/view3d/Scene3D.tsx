@@ -85,7 +85,14 @@ export function Scene3D({ editable }: { editable: boolean }) {
 
     const elevations = useMemo(() => floorElevations(project), [project]);
     const focusIndex = project.floors.findIndex(f => f.id === focusFloorId);
-    const offsets = project.floors.map((_, i) => (explode && focusIndex < 0 ? i * EXPLODE_GAP : 0));
+    // explosion: storeys move apart in their stacking order; the garden stays on the ground
+    const storeyRank = (() => {
+        let r = 0;
+        return project.floors.map(f => (f.kind === 'outdoor' ? 0 : r++));
+    })();
+    const offsets = project.floors.map((f, i) => (explode && focusIndex < 0 && f.kind !== 'outdoor' ? storeyRank[i] * EXPLODE_GAP : 0));
+    const focusElevation = focusIndex >= 0 ? elevations[focusIndex] : Infinity;
+    const focusKind = focusIndex >= 0 ? (project.floors[focusIndex].kind ?? 'normal') : null;
 
     useEffect(() => setFocusRoom(null), [focusFloorId]);
 
@@ -157,13 +164,16 @@ export function Scene3D({ editable }: { editable: boolean }) {
 
     return (
         <Canvas shadows camera={{ position: [18, 16, 22], fov: 40, near: 0.1, far: 500 }} onPointerMissed={() => setHover(null)}>
-            <Environment style={style} />
+            {/* the ground hides the basement: fade it out while a basement is selected */}
+            <Environment style={style} groundOpacity={focusKind === 'basement' ? 0.12 : 1} />
 
             {project.floors.map((f, i) => {
-                const hidden = focusIndex >= 0 && i > focusIndex;
+                // everything above the selected floor is hidden (by height, so the garden and the
+                // ground floor show together)
+                const hidden = focusIndex >= 0 && elevations[i] > focusElevation + 0.01;
                 const isFocus = i === focusIndex;
                 // the roof opens when its storey is selected, and disappears with the storey
-                const roofState = focusIndex < 0 || i < focusIndex ? 'closed' : isFocus ? 'open' : 'hidden';
+                const roofState = isFocus ? 'open' : hidden ? 'hidden' : 'closed';
                 return (
                     <group key={f.id}>
                     {f.roof && (
@@ -172,6 +182,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                             elevation={elevations[i]}
                             offset={offsets[i]}
                             state={roofState}
+                            wallColor={style.wallExterior}
                             onClick={
                                 roofState === 'closed'
                                     ? e => {

@@ -20,6 +20,8 @@ export type AttachTarget =
 export interface WallDefaults {
     thickness: number;
     height: number;
+    /** Create invisible area boundaries instead of walls. */
+    boundary?: boolean;
 }
 
 const MERGE_DIST = 1e-4;
@@ -131,7 +133,15 @@ export function addWall(floor: Floor, from: AttachTarget, to: AttachTarget, defa
         const b = ids[i + 1];
         if (a === b || findWall(floor, a, b)) continue;
         const id = uid('w');
-        floor.walls[id] = { id, a, b, thickness: defaults.thickness, height: defaults.height, openings: [] };
+        floor.walls[id] = {
+            id,
+            a,
+            b,
+            thickness: defaults.thickness,
+            height: defaults.height,
+            openings: [],
+            ...(defaults.boundary ? { boundary: true } : {}),
+        };
     }
     return endId;
 }

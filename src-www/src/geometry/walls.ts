@@ -47,7 +47,9 @@ export function computeWallGeometry(floor: Floor): WallGeometry {
     const nodes = floor.nodes;
     const incident = new Map<string, Incident[]>();
 
-    for (const w of Object.values(floor.walls)) {
+    // area boundaries (garden) have no body: they neither mitre nor show
+    const walls = Object.values(floor.walls).filter(w => !w.boundary);
+    for (const w of walls) {
         const a = nodes[w.a];
         const b = nodes[w.b];
         if (!a || !b) continue;
@@ -119,7 +121,7 @@ export function computeWallGeometry(floor: Floor): WallGeometry {
     }
 
     const frames: Record<string, WallFrame> = {};
-    for (const w of Object.values(floor.walls)) {
+    for (const w of walls) {
         const a = nodes[w.a];
         const b = nodes[w.b];
         if (!a || !b) continue;

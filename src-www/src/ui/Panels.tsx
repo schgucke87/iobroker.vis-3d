@@ -10,7 +10,7 @@ import { listMaterials, loadAsset, type ModelMaterial } from '../assets/assetSto
 import { pointInPolygon } from '../geometry/vec';
 import { computeWallGeometry } from '../geometry/walls';
 import { readImageFile } from '../storage/local';
-import type { FloorMaterial, Opening, Roof, RoofType } from '../model/types';
+import type { FloorMaterial, GroundMaterial, Opening, Roof, RoofType } from '../model/types';
 import { DEFAULT_ROOF, ROOF_TYPES, roofFrame, roofTop } from '../geometry/roof';
 
 function NumberField(props: { label: string; value: number; step?: number; min?: number; unit?: string; onChange: (v: number) => void }) {
@@ -50,7 +50,10 @@ export function FloorPanel() {
             </button>
             {floors.map(({ f, i }) => (
                 <div key={f.id} className={`floor-item ${f.id === activeId ? 'active' : ''}`} onClick={() => s().setActiveFloor(f.id)}>
-                    <span className="floor-name">{f.name}</span>
+                    <span className="floor-name">
+                        {f.kind === 'outdoor' ? '🌳 ' : f.kind === 'basement' ? '⬇ ' : ''}
+                        {f.name}
+                    </span>
                     <span className="floor-elev">{elevations[i] >= 0 ? '+' : ''}{elevations[i].toFixed(2).replace('.', ',')}</span>
                     <span className="floor-actions" onClick={e => e.stopPropagation()}>
                         <button title="Nach oben" disabled={i === project.floors.length - 1} onClick={() => s().moveFloor(f.id, 1)}>▲</button>
@@ -63,6 +66,12 @@ export function FloorPanel() {
             </button>
             <button className="add" onClick={() => s().addAttic()} title="Neues Geschoss mit Kniestock-Außenwänden und Satteldach">
                 + Dachboden mit Dach
+            </button>
+            <button className="add" onClick={() => s().addBasement()} title="Geschoss unter dem Erdgeschoss mit dessen Außenwänden">
+                + Keller
+            </button>
+            <button className="add" onClick={() => s().addGarden()} title="Außenbereich auf Geländehöhe: Terrassen, Wege, Rasen als Bereiche">
+                + Garten / Außenbereich
             </button>
         </div>
     );
@@ -78,9 +87,20 @@ export function PropertiesPanel() {
     const rooms = useMemo(() => detectRooms(floor), [floor]);
     const geometry = useMemo(() => computeWallGeometry(floor), [floor]);
     const style = projectStyle(useEditor(st => st.project));
+    const outdoor = floor.kind === 'outdoor';
 
     let content: React.ReactNode = null;
-    if (selection?.kind === 'wall' && floor.walls[selection.id]) {
+    if (selection?.kind === 'wall' && floor.walls[selection.id]?.boundary) {
+        content = (
+            <>
+                <h3>Bereichsgrenze</h3>
+                <div className="hint-small">Unsichtbare Grenze: trennt Bereiche wie eine Wand, ist in 3D aber nicht zu sehen.</div>
+                <button className="danger" onClick={() => s().deleteSelection()}>
+                    Grenze löschen
+                </button>
+            </>
+        );
+    } else if (selection?.kind === 'wall' && floor.walls[selection.id]) {
         const w = floor.walls[selection.id];
         const fr = geometry.frames[w.id];
         content = (
@@ -149,7 +169,7 @@ export function PropertiesPanel() {
         if (room) {
             content = (
                 <>
-                    <h3>Raum</h3>
+                    <h3>{outdoor ? 'Bereich' : 'Raum'}</h3>
                     <label className="field">
                         <span>Name</span>
                         <input value={room.meta?.name ?? ''} placeholder="Raum" onChange={e => s().updateRoom(selection.anchor, { name: e.target.value })} />
@@ -163,12 +183,16 @@ export function PropertiesPanel() {
                         <span>Belag</span>
                         <select
                             value={room.meta?.floorMaterial ?? ''}
-                            onChange={e => s().updateRoom(selection.anchor, { floorMaterial: (e.target.value || undefined) as FloorMaterial | undefined })}
+                            onChange={e => {
+                                const floorMaterial = (e.target.value || undefined) as FloorMaterial | GroundMaterial | undefined;
+                                // a fitting colour for the new surface (it can be changed below)
+                                s().updateRoom(selection.anchor, { floorMaterial, floorColor: floorMaterial ? SURFACE_COLORS[floorMaterial] : undefined });
+                            }}
                         >
-                            <option value="">Standard ({FLOOR_MATERIALS[style.floorMaterial]})</option>
-                            {(Object.keys(FLOOR_MATERIALS) as FloorMaterial[]).map(m => (
+                            <option value="">Standard ({outdoor ? 'Pflaster' : FLOOR_MATERIALS[style.floorMaterial]})</option>
+                            {Object.entries(outdoor ? OUTDOOR_MATERIALS : FLOOR_MATERIALS).map(([m, label]) => (
                                 <option key={m} value={m}>
-                                    {FLOOR_MATERIALS[m]}
+                                    {label}
                                 </option>
                             ))}
                         </select>
@@ -176,8 +200,8 @@ export function PropertiesPanel() {
                     <ColorField
                         label="Farbe"
                         value={room.meta?.floorColor}
-                        fallback={style.floorColor}
-                        swatches={SWATCHES.floor}
+                        fallback={outdoor ? '#a39e94' : style.floorColor}
+                        swatches={outdoor ? [...SWATCHES.ground, '#8b5e3c', '#b8b4ad'] : SWATCHES.floor}
                         onChange={floorColor => s().updateRoom(selection.anchor, { floorColor })}
                     />
                     <div className="info">Fläche: {room.area.toFixed(2).replace('.', ',')} m²</div>
@@ -197,6 +221,8 @@ export function PropertiesPanel() {
                 </>
             );
         }
+    } else if (selection?.kind === 'roofFeature' && floor.roof?.features?.some(f => f.id === selection.id)) {
+        content = <RoofFeatureProps id={selection.id} />;
     } else if (selection?.kind === 'object' && floor.objects[selection.id]) {
         content = <ObjectProps id={selection.id} />;
     } else if (selection?.kind === 'background' && floor.background) {
@@ -207,21 +233,37 @@ export function PropertiesPanel() {
         <div className="panel">
             {content ?? (
                 <>
-                    <h3>Stockwerk</h3>
+                    <h3>{outdoor ? 'Außenbereich' : floor.kind === 'basement' ? 'Keller' : 'Stockwerk'}</h3>
                     <label className="field">
                         <span>Name</span>
                         <input value={floor.name} onChange={e => s().updateFloor(floor.id, { name: e.target.value })} />
                     </label>
-                    <NumberField label="Raumhöhe" unit="m" value={floor.height} min={1} onChange={v => s().updateFloor(floor.id, { height: Math.max(1, v) })} />
-                    <NumberField label="Deckenstärke" unit="m" value={floor.slab} min={0.05} onChange={v => s().updateFloor(floor.id, { slab: Math.max(0.05, v) })} />
+                    {!outdoor && (
+                        <NumberField label="Raumhöhe" unit="m" value={floor.height} min={0.5} onChange={v => s().updateFloor(floor.id, { height: Math.max(0.5, v) })} />
+                    )}
+                    <NumberField
+                        label={outdoor ? 'Höhe der Flächen' : 'Deckenstärke'}
+                        unit="m"
+                        value={floor.slab}
+                        min={0.02}
+                        onChange={v => s().updateFloor(floor.id, { slab: Math.max(0.02, v) })}
+                    />
                     <div className="info">
-                        {Object.keys(floor.walls).length} Wände · {rooms.length} Räume
+                        {outdoor
+                            ? `${rooms.length} Bereiche`
+                            : `${Object.keys(floor.walls).length} Wände · ${rooms.length} Räume`}
                     </div>
+                    {outdoor && (
+                        <div className="hint-small">
+                            Mit dem Werkzeug <b>Bereich</b> (B) Flächen umranden, z. B. Terrassen, Wege oder Beete. Jede geschlossene Fläche ist ein Bereich
+                            wie ein Raum: Name, Belag, ioBroker-Raum, Temperatur, Vorschläge. Mauern, Zäune o. Ä. mit dem Werkzeug Wand.
+                        </div>
+                    )}
                     <button className="danger" disabled={floorsCount <= 1} onClick={() => confirm(`Stockwerk „${floor.name}“ löschen?`) && s().removeFloor(floor.id)}>
                         Stockwerk löschen
                     </button>
 
-                    <RoofProps />
+                    {!outdoor && <RoofProps />}
 
                     <h3>Grundriss-Vorlage</h3>
                     {floor.background ? (
@@ -413,6 +455,30 @@ function ObjectColors({ id }: { id: string }) {
     );
 }
 
+/** Typical colour per surface, used when the surface of a room or area is changed. */
+const SURFACE_COLORS: Record<string, string | undefined> = {
+    wood: '#a8754a',
+    tiles: '#d9d2c7',
+    stone: '#b8b4ad',
+    carpet: '#7d8a99',
+    paving: '#a39e94',
+    gravel: '#c9bfa8',
+    grass: '#6f9e4f',
+    snow: '#f4f6f8',
+    plain: undefined,
+};
+
+/** Surfaces for garden areas. */
+const OUTDOOR_MATERIALS: Record<string, string> = {
+    paving: 'Pflaster',
+    wood: 'Holzterrasse',
+    stone: 'Natursteinplatten',
+    tiles: 'Terrassenfliesen',
+    gravel: 'Kies',
+    grass: 'Rasen',
+    plain: 'Einfarbig',
+};
+
 const ROOF_COLORS = ['#8e4636', '#a8553a', '#5c3b30', '#3f4247', '#5f6670', '#7d8a99', '#4f6b4a'];
 
 /** Roof of the active storey. */
@@ -459,6 +525,17 @@ function RoofProps() {
                         </label>
                     )}
                     <ColorField label="Farbe" value={roof.color} fallback={roof.color} swatches={ROOF_COLORS} onChange={c => c && set({ color: c })} />
+                    {roof.type !== 'flat' && (
+                        <div className="row">
+                            <button onClick={() => s().addRoofFeature('window')}>+ Dachfenster</button>
+                            <button onClick={() => s().addRoofFeature('dormer')}>+ Gaube</button>
+                        </div>
+                    )}
+                    {(roof.features?.length ?? 0) > 0 && (
+                        <div className="hint-small">
+                            {roof.features!.length} Dachfenster/Gauben – im Grundriss anklicken zum Bearbeiten, ziehen zum Verschieben.
+                        </div>
+                    )}
                     {frame && (
                         <div className="info">
                             Firsthöhe {(roofTop(frame) - floor.height).toFixed(2).replace('.', ',')} m über den Wänden · Traufe auf {floor.height.toFixed(2).replace('.', ',')} m (Raumhöhe = Kniestock)
@@ -469,6 +546,48 @@ function RoofProps() {
                     </div>
                 </>
             )}
+        </>
+    );
+}
+
+/** A roof window or dormer. */
+function RoofFeatureProps({ id }: { id: string }) {
+    const floor = useEditor(activeFloor);
+    const s = useEditor.getState;
+    const f = floor.roof?.features?.find(x => x.id === id);
+    if (!f) return null;
+    const up = (patch: Parameters<ReturnType<typeof s>['updateRoofFeature']>[1]) => s().updateRoofFeature(id, patch);
+    return (
+        <>
+            <h3>{f.type === 'window' ? 'Dachfenster' : 'Gaube'}</h3>
+            {f.type === 'dormer' && (
+                <label className="field">
+                    <span>Form</span>
+                    <select value={f.dormerRoof ?? 'shed'} onChange={e => up({ dormerRoof: e.target.value as 'shed' | 'gable' })}>
+                        <option value="shed">Schleppgaube</option>
+                        <option value="gable">Satteldachgaube</option>
+                    </select>
+                </label>
+            )}
+            <NumberField label="Breite" unit="m" step={0.05} min={0.3} value={f.width} onChange={v => up({ width: Math.max(0.3, v) })} />
+            {f.type === 'window' ? (
+                <NumberField label="Länge" unit="m" step={0.05} min={0.3} value={f.length ?? 1.18} onChange={v => up({ length: Math.max(0.3, v) })} />
+            ) : (
+                <NumberField label="Fronthöhe" unit="m" step={0.05} min={0.5} value={f.frontHeight ?? 1.3} onChange={v => up({ frontHeight: Math.max(0.5, v) })} />
+            )}
+            <NumberField label="X" unit="m" value={f.x} onChange={v => up({ x: v })} />
+            <NumberField label="Y" unit="m" value={f.y} onChange={v => up({ y: v })} />
+            <h3>Fensterkontakt</h3>
+            <StateIdField label="Datenpunkt" value={f.stateId} roleHint="sensor" onChange={stateId => up({ stateId: stateId || undefined })} />
+            {f.stateId && (
+                <label className="field check">
+                    <input type="checkbox" checked={!!f.invert} onChange={e => up({ invert: e.target.checked })} />
+                    <span>Umkehren (wahr = geschlossen)</span>
+                </label>
+            )}
+            <button className="danger" onClick={() => s().deleteSelection()}>
+                Löschen
+            </button>
         </>
     );
 }

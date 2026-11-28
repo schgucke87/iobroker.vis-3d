@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { AssetMeta, Floor, Opening, Project, ProjectStyle, RoomMeta, SceneObject, Vec2, Wall } from './types';
+import type { AssetMeta, Floor, Opening, Project, ProjectStyle, RoofFeature, RoomMeta, SceneObject, Vec2, Wall } from './types';
 import * as ops from './ops';
 import { detectRooms, wallSideRooms } from '../geometry/rooms';
 import { computeWallGeometry } from '../geometry/walls';
-import { DEFAULT_ROOF } from '../geometry/roof';
+import { DEFAULT_ROOF, roofFrame } from '../geometry/roof';
+import { newRoofFeature } from '../geometry/roofFeatures';
 import { pointInPolygon } from '../geometry/vec';
 import { builtinAssets } from '../assets/builtin';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'calibrate' | 'background' | 'place';
+export type Tool = 'select' | 'wall' | 'area' | 'door' | 'window' | 'calibrate' | 'background' | 'place';
 export type ViewMode = 'split' | '2d' | '3d';
 
 export type Selection =
@@ -17,6 +18,7 @@ export type Selection =
     | { kind: 'opening'; wallId: string; id: string }
     | { kind: 'room'; anchor: Vec2 }
     | { kind: 'object'; id: string }
+    | { kind: 'roofFeature'; id: string }
     | { kind: 'background' };
 
 export interface Settings {
@@ -62,13 +64,20 @@ export interface EditorState {
      * storey and a gable roof; a roof of the storey below moves up.
      */
     addAttic(): void;
+    /** Adds a roof window or dormer to the active storey's roof and selects it. */
+    addRoofFeature(type: RoofFeature['type']): void;
+    updateRoofFeature(id: string, patch: Partial<RoofFeature>): void;
+    /** Adds a basement below the lowest storey, with its outer walls. */
+    addBasement(): void;
+    /** Adds the garden (outdoor areas at ground level) or selects it if there is one. */
+    addGarden(): void;
     removeFloor(id: string): void;
     moveFloor(id: string, dir: -1 | 1): void;
     updateFloor(id: string, patch: Partial<Pick<Floor, 'name' | 'height' | 'slab' | 'background' | 'roof'>>): void;
 
     /** Runs a mutation on a copy of the active floor and commits it. */
     editFloor<T>(fn: (floor: Floor) => T): T;
-    addWall(from: ops.AttachTarget, to: ops.AttachTarget): string;
+    addWall(from: ops.AttachTarget, to: ops.AttachTarget, boundary?: boolean): string;
     updateWall(id: string, patch: Partial<Pick<Wall, 'thickness' | 'height' | 'colorLeft' | 'colorRight'>>): void;
     /** Changes the project style; `undefined` values reset a field to its default. */
     updateStyle(patch: { [K in keyof ProjectStyle]?: ProjectStyle[K] | undefined }): void;
@@ -165,8 +174,9 @@ export const useEditor = create<EditorState>()(
                 addFloor: () => {
                     const s = get();
                     const names = ['Erdgeschoss', 'Obergeschoss', 'Dachgeschoss'];
-                    const f = newFloor(names[s.project.floors.length] ?? `Etage ${s.project.floors.length}`);
-                    const below = s.project.floors[s.project.floors.length - 1];
+                    const storeys = s.project.floors.filter(f => (f.kind ?? 'normal') === 'normal').length;
+                    const f = newFloor(names[storeys] ?? `Etage ${storeys}`);
+                    const below = topStorey(s.project);
                     if (below) {
                         // start with a copy of the floor below's walls so outer walls line up
                         f.height = below.height;
@@ -175,31 +185,70 @@ export const useEditor = create<EditorState>()(
                         for (const w of Object.values(f.walls)) w.openings = [];
                     }
                     f.objects = {};
-                    set({ project: { ...s.project, floors: [...s.project.floors, f] }, activeFloorId: f.id, focusFloorId: f.id, selection: null });
+                    f.roof = undefined;
+                    set({ project: { ...s.project, floors: insertStorey(s.project.floors, f) }, activeFloorId: f.id, focusFloorId: f.id, selection: null });
                 },
                 addAttic: () => {
                     const s = get();
-                    const below = s.project.floors[s.project.floors.length - 1];
+                    const below = topStorey(s.project);
                     const attic = newFloor('Dachboden');
                     attic.height = 1.0;
-                    if (below) {
-                        // only the outer walls: walls with the outside on one side
-                        const frames = computeWallGeometry(below).frames;
-                        const sides = wallSideRooms(frames, detectRooms(below));
-                        for (const w of Object.values(below.walls)) {
-                            const side = sides[w.id];
-                            if (side && side.left && side.right) continue;
-                            for (const id of [w.a, w.b]) attic.nodes[id] = { ...below.nodes[id] };
-                            attic.walls[w.id] = { ...w, height: attic.height, openings: [], colorLeft: undefined, colorRight: undefined };
-                        }
-                    }
+                    if (below) copyOuterWalls(below, attic, attic.height);
                     attic.roof = { ...(below?.roof ?? DEFAULT_ROOF) };
                     const floors = s.project.floors.map(f => (f === below && f.roof ? { ...f, roof: undefined } : f));
                     set({
-                        project: { ...s.project, floors: [...floors, attic] },
+                        project: { ...s.project, floors: insertStorey(floors, attic) },
                         activeFloorId: attic.id,
                         focusFloorId: attic.id,
                         selection: null,
+                    });
+                },
+                addRoofFeature: type => {
+                    const floor = activeFloor(get());
+                    const frame = roofFrame(floor);
+                    if (!frame || !floor.roof) return;
+                    const feat = newRoofFeature(frame, floor.roof, type);
+                    get().editFloor(f => {
+                        if (f.roof) f.roof.features = [...(f.roof.features ?? []), feat];
+                    });
+                    set({ selection: { kind: 'roofFeature', id: feat.id } });
+                },
+                updateRoofFeature: (id, patch) =>
+                    get().editFloor(f => {
+                        const feat = f.roof?.features?.find(x => x.id === id);
+                        if (feat) Object.assign(feat, patch);
+                    }),
+                addBasement: () => {
+                    const s = get();
+                    const above = s.project.floors.find(f => (f.kind ?? 'normal') !== 'outdoor');
+                    const cellar = newFloor('Keller');
+                    cellar.kind = 'basement';
+                    cellar.height = 2.3;
+                    if (above) copyOuterWalls(above, cellar, cellar.height);
+                    set({
+                        project: { ...s.project, floors: [cellar, ...s.project.floors] },
+                        activeFloorId: cellar.id,
+                        focusFloorId: cellar.id,
+                        selection: null,
+                    });
+                },
+                addGarden: () => {
+                    const s = get();
+                    const existing = s.project.floors.find(f => f.kind === 'outdoor');
+                    if (existing) {
+                        set({ activeFloorId: existing.id, focusFloorId: existing.id, selection: null });
+                        return;
+                    }
+                    const garden = newFloor('Garten');
+                    garden.kind = 'outdoor';
+                    // areas are slabs from the ground up to the ground floor level
+                    garden.slab = 0.25;
+                    set({
+                        project: { ...s.project, floors: [...s.project.floors, garden] },
+                        activeFloorId: garden.id,
+                        focusFloorId: garden.id,
+                        selection: null,
+                        tool: 'area',
                     });
                 },
                 removeFloor: id => {
@@ -232,11 +281,16 @@ export const useEditor = create<EditorState>()(
                     replaceFloor(floor);
                     return result;
                 },
-                addWall: (from, to) => {
+                addWall: (from, to, boundary) => {
                     const s = get();
                     const floor = activeFloor(s);
                     return s.editFloor(f =>
-                        ops.addWall(f, from, to, { thickness: s.settings.wallThickness, height: floor.height }),
+                        ops.addWall(
+                            f,
+                            from,
+                            to,
+                            boundary ? { thickness: 0.05, height: 0, boundary: true } : { thickness: s.settings.wallThickness, height: floor.height },
+                        ),
                     );
                 },
                 updateStyle: patch =>
@@ -266,6 +320,8 @@ export const useEditor = create<EditorState>()(
                                 if (w) w.openings = w.openings.filter(o => o.id !== sel.id);
                             } else if (sel.kind === 'object') {
                                 delete f.objects[sel.id];
+                            } else if (sel.kind === 'roofFeature') {
+                                if (f.roof?.features) f.roof.features = f.roof.features.filter(x => x.id !== sel.id);
                             } else if (sel.kind === 'room') {
                                 for (const m of Object.values(f.rooms)) {
                                     if (pointInRoomOf(f, m.anchor, sel.anchor)) delete f.rooms[m.id];
@@ -381,13 +437,50 @@ export function normalizeAngle(a: number): number {
 export const undo = () => useEditor.temporal.getState().undo();
 export const redo = () => useEditor.temporal.getState().redo();
 
-/** Elevation (top of the floor slab) of each storey, bottom to top. */
+/**
+ * Elevation (top of the floor slab) of each floor, in the order of
+ * project.floors. The storeys are stacked; the ground floor (the first storey
+ * that is no basement) is at 0, basements below it; outdoor floors (garden)
+ * lie at ground floor level and do not take part in the stack.
+ */
 export function floorElevations(project: Project): number[] {
-    const result: number[] = [];
+    const result: number[] = new Array(project.floors.length).fill(0);
     let z = 0;
+    let prev: Floor | null = null;
+    let ground = 0;
+    let groundFound = false;
     project.floors.forEach((f, i) => {
-        if (i > 0) z += project.floors[i - 1].height + f.slab;
-        result.push(z);
+        if (f.kind === 'outdoor') return;
+        if (prev) z += prev.height + f.slab;
+        result[i] = z;
+        if (!groundFound && f.kind !== 'basement') {
+            ground = z;
+            groundFound = true;
+        }
+        prev = f;
     });
-    return result;
+    return result.map((e, i) => (project.floors[i].kind === 'outdoor' ? 0 : e - ground));
+}
+
+/** The highest storey of the building (no garden). */
+export function topStorey(p: Project): Floor | undefined {
+    return [...p.floors].reverse().find(f => f.kind !== 'outdoor');
+}
+
+/** Inserts a storey above the others, below the garden entries. */
+function insertStorey(floors: Floor[], f: Floor): Floor[] {
+    const i = floors.findIndex(x => x.kind === 'outdoor');
+    return i < 0 ? [...floors, f] : [...floors.slice(0, i), f, ...floors.slice(i)];
+}
+
+/** Copies the outer walls (outside on one side) of a storey into another, with the given height. */
+function copyOuterWalls(from: Floor, to: Floor, height: number) {
+    const frames = computeWallGeometry(from).frames;
+    const sides = wallSideRooms(frames, detectRooms(from));
+    for (const w of Object.values(from.walls)) {
+        const side = sides[w.id];
+        if (!side || (side.left && side.right)) continue;
+        for (const id of [w.a, w.b]) to.nodes[id] = { ...from.nodes[id] };
+        to.walls[w.id] = { ...w, height, openings: [], colorLeft: undefined, colorRight: undefined };
+    }
 }

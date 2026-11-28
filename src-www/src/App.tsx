@@ -15,6 +15,7 @@ import { storageLabel } from './storage/local';
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
     { id: 'select', label: 'Auswählen', key: 'V', icon: '↖' },
     { id: 'wall', label: 'Wand', key: 'W', icon: '▭' },
+    { id: 'area', label: 'Bereich', key: 'B', icon: '⬚' },
     { id: 'door', label: 'Tür', key: 'D', icon: '🚪' },
     { id: 'window', label: 'Fenster', key: 'F', icon: '🪟' },
 ];

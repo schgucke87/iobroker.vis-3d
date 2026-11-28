@@ -5,6 +5,7 @@ import type { Floor } from '../model/types';
 import { roofFrame, roofPlanes, ROOF_THICKNESS } from '../geometry/roof';
 import { buildRoofGeometry } from '../geometry/mesh';
 import { surfaceMaterial } from './textures';
+import { RoofFeatures3D, type FeatureMaterials } from './RoofFeatures3D';
 
 /**
  * The roof of a storey. `state`: closed (on the house), open (lifted off and
@@ -15,6 +16,8 @@ export function Roof3D(props: {
     elevation: number;
     offset: number;
     state: 'closed' | 'open' | 'hidden';
+    /** Colour of the dormer walls (the facade colour). */
+    wallColor?: string;
     onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }) {
     const { floor } = props;
@@ -24,6 +27,18 @@ export function Roof3D(props: {
     const color = floor.roof?.color ?? '#8e4636';
     const material = useMemo(() => surfaceMaterial(floor.roof?.type === 'flat' ? 'gravel' : 'rooftiles', color, 1, { roughness: 0.8, side: THREE.DoubleSide }), [color, floor.roof?.type]);
     useEffect(() => () => material.dispose(), [material]);
+    const wallColor = props.wallColor ?? '#e4e0d8';
+    const extra = useMemo<Omit<FeatureMaterials, 'roof'>>(
+        () => ({
+            wall: new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 }),
+            frame: new THREE.MeshStandardMaterial({ color: '#4a4f57', roughness: 0.5 }),
+            glass: new THREE.MeshPhysicalMaterial({ color: '#9cc7e6', roughness: 0.05, transparent: true, opacity: 0.45 }),
+            glassOpen: new THREE.MeshPhysicalMaterial({ color: '#ff8a4c', roughness: 0.2, transparent: true, opacity: 0.6 }),
+            glassTilted: new THREE.MeshPhysicalMaterial({ color: '#ffcf4a', roughness: 0.2, transparent: true, opacity: 0.6 }),
+        }),
+        [wallColor],
+    );
+    useEffect(() => () => Object.values(extra).forEach(m => m.dispose()), [extra]);
 
     const group = useRef<THREE.Group>(null);
     const anim = useRef({ lift: props.state === 'closed' ? 0 : 1, opacity: props.state === 'closed' ? 1 : 0, offset: props.offset });
@@ -47,12 +62,23 @@ export function Roof3D(props: {
         }
         material.opacity = a.opacity;
         material.depthWrite = a.opacity > 0.5;
+        for (const m of [extra.wall, extra.frame]) {
+            if (m.transparent !== transparent) {
+                m.transparent = transparent;
+                m.needsUpdate = true;
+            }
+            m.opacity = a.opacity;
+        }
+        extra.glass.opacity = 0.45 * a.opacity;
+        extra.glassOpen.opacity = 0.6 * a.opacity;
+        extra.glassTilted.opacity = 0.6 * a.opacity;
     });
 
     if (!geometry) return null;
     return (
         <group ref={group} position={[0, props.elevation + props.offset, 0]}>
             <mesh geometry={geometry} material={material} castShadow receiveShadow onClick={props.onClick} />
+            {frame && floor.roof?.features?.length ? <RoofFeatures3D frame={frame} features={floor.roof.features} mats={{ roof: material, ...extra }} /> : null}
         </group>
     );
 }

@@ -3,10 +3,11 @@ import type { DetectedRoom, Floor, Vec2 } from '../model/types';
 import { activeFloor, findAsset, useEditor } from '../model/store';
 import { computePlacement, objectAxes, objectFootprint } from '../geometry/placement';
 import { roofCreases, roofFrame, roofOutline } from '../geometry/roof';
+import { featureFootprint } from '../geometry/roofFeatures';
 import * as ops from '../model/ops';
 import { computeWallGeometry, clampOpening, openingRange, pointOnWall, type WallFrame } from '../geometry/walls';
 import { detectRooms } from '../geometry/rooms';
-import { add, dist, dot, pointInPolygon, scale, sub } from '../geometry/vec';
+import { add, dist, dot, pointInPolygon, projectOnSegment, scale, sub } from '../geometry/vec';
 import { snapPoint, type SnapResult } from './snapping';
 
 interface View {
@@ -23,7 +24,8 @@ type Drag =
     | { kind: 'wall'; id: string; start: Vec2; origin: Record<string, Vec2> }
     | { kind: 'opening'; wallId: string; id: string }
     | { kind: 'background'; start: Vec2; origin: Vec2 }
-    | { kind: 'object'; id: string; start: Vec2; origin: Vec2 };
+    | { kind: 'object'; id: string; start: Vec2; origin: Vec2 }
+    | { kind: 'roofFeature'; id: string; start: Vec2; origin: Vec2 };
 
 const MOUNT_ORDER = { floor: 0, wall: 1, ceiling: 2 } as const;
 const fmt = (m: number) => `${m.toFixed(2).replace('.', ',')} m`;
@@ -54,14 +56,27 @@ export function PlanEditor() {
 
     const geometry = useMemo(() => computeWallGeometry(floor), [floor]);
     const roof = useMemo(() => roofFrame(floor), [floor]);
+    const roofFeatures = useMemo(
+        () => (roof ? (floor.roof?.features ?? []).map(f => ({ f, poly: featureFootprint(roof, f) })) : []),
+        [roof, floor.roof?.features],
+    );
     const rooms = useMemo(() => detectRooms(floor), [floor]);
     const mpp = 1 / view.s;
 
     // floor below, drawn faintly as a reference
+    /** Reference shown faintly: the floor below; for the garden and a basement the ground floor. */
     const below = useMemo(() => {
         const i = floors.findIndex(f => f.id === floor.id);
-        return i > 0 ? computeWallGeometry(floors[i - 1]) : null;
-    }, [floors, floor.id]);
+        const storeys = floors.filter(f => f.kind !== 'outdoor');
+        const ground = storeys.find(f => f.kind !== 'basement');
+        let ref: Floor | undefined;
+        if (floor.kind === 'outdoor' || floor.kind === 'basement') ref = ground && ground.id !== floor.id ? ground : undefined;
+        else ref = [...floors.slice(0, i)].reverse().find(f => f.kind !== 'outdoor');
+        return ref ? computeWallGeometry(ref) : null;
+    }, [floors, floor.id, floor.kind]);
+    /** The wall tool draws walls, the area tool invisible area boundaries (garden). */
+    const drawing = tool === 'wall' || tool === 'area';
+    const boundaries = useMemo(() => Object.values(floor.walls).filter(w => w.boundary), [floor.walls]);
 
     // viewport size
     useEffect(() => {
@@ -146,6 +161,20 @@ export function PlanEditor() {
         }
         return null;
     };
+    const hitBoundary = (p: Vec2): string | null => {
+        let best: string | null = null;
+        let bd = 6 * mpp;
+        for (const w of boundaries) {
+            const a = floor.nodes[w.a];
+            const b = floor.nodes[w.b];
+            const d = projectOnSegment(p, [a.x, a.y], [b.x, b.y]).distance;
+            if (d < bd) {
+                bd = d;
+                best = w.id;
+            }
+        }
+        return best;
+    };
     const hitWall = (p: Vec2, tolPx = 3): WallFrame | null => {
         let best: WallFrame | null = null;
         let bd = Infinity;
@@ -220,12 +249,12 @@ export function PlanEditor() {
         }
         if (e.button !== 0) return;
 
-        if (tool === 'wall') {
+        if (drawing) {
             const s = snap(p, e, { from: drawFrom?.point });
             if (!drawFrom) {
                 setDrawFrom({ target: s.target, point: s.point });
             } else {
-                const endId = api().addWall(drawFrom.target, s.target);
+                const endId = api().addWall(drawFrom.target, s.target, tool === 'area');
                 setDrawFrom({ target: { kind: 'node', nodeId: endId }, point: s.point });
             }
             setTyped('');
@@ -273,6 +302,13 @@ export function PlanEditor() {
             drag.current = { kind: 'object', id: obj, start: p, origin: [floor.objects[obj].x, floor.objects[obj].y] };
             return;
         }
+        const rf = roofFeatures.find(x => pointInPolygon(p, x.poly));
+        if (rf) {
+            api().select({ kind: 'roofFeature', id: rf.f.id });
+            api().beginGesture();
+            drag.current = { kind: 'roofFeature', id: rf.f.id, start: p, origin: [rf.f.x, rf.f.y] };
+            return;
+        }
         const op = hitOpening(p);
         if (op) {
             api().select({ kind: 'opening', ...op });
@@ -280,13 +316,14 @@ export function PlanEditor() {
             drag.current = { kind: 'opening', ...op };
             return;
         }
-        const wall = hitWall(p);
-        if (wall) {
-            api().select({ kind: 'wall', id: wall.wall.id });
+        const wallId = hitWall(p)?.wall.id ?? hitBoundary(p);
+        if (wallId) {
+            const w = floor.walls[wallId];
+            api().select({ kind: 'wall', id: wallId });
             api().beginGesture();
             const origin: Record<string, Vec2> = {};
-            for (const id of [wall.wall.a, wall.wall.b]) origin[id] = [floor.nodes[id].x, floor.nodes[id].y];
-            drag.current = { kind: 'wall', id: wall.wall.id, start: p, origin };
+            for (const id of [w.a, w.b]) origin[id] = [floor.nodes[id].x, floor.nodes[id].y];
+            drag.current = { kind: 'wall', id: wallId, start: p, origin };
             return;
         }
         drag.current = { kind: 'pan', start: [e.clientX, e.clientY], view, moved: false };
@@ -345,13 +382,20 @@ export function PlanEditor() {
             api().updateObject(d.id, { x: pl.x, y: pl.y, rotation: pl.rotation, elevation: pl.elevation });
             return;
         }
+        if (d?.kind === 'roofFeature') {
+            const g = settings.snap && !e.shiftKey ? settings.grid : 0;
+            const r = (v: number) => (g ? Math.round(v / g) * g : v);
+            const t = add(d.origin, sub(p, d.start));
+            api().updateRoofFeature(d.id, { x: r(t[0]), y: r(t[1]) });
+            return;
+        }
         if (d?.kind === 'background' && floor.background) {
             const delta = sub(p, d.start);
             api().updateFloor(floor.id, { background: { ...floor.background, x: d.origin[0] + delta[0], y: d.origin[1] + delta[1] } });
             return;
         }
 
-        if (tool === 'wall') setCursor(snap(p, e, { from: drawFrom?.point }));
+        if (drawing) setCursor(snap(p, e, { from: drawFrom?.point }));
         else if (tool === 'door' || tool === 'window') setHoverPreview(openingPreview(p));
         else if (tool === 'place') setPlacePoint(p);
         else if (tool === 'calibrate') setCursor({ point: p, target: { kind: 'point', point: p }, kind: 'free', guides: [] });
@@ -367,7 +411,7 @@ export function PlanEditor() {
                 const room = hitRoom(toPlan(e));
                 api().select(room ? { kind: 'room', anchor: room.meta?.anchor ?? room.centroid } : null);
             }
-            if (!d.moved && e.button === 2 && tool === 'wall') {
+            if (!d.moved && e.button === 2 && drawing) {
                 setDrawFrom(null);
                 setTyped('');
             }
@@ -419,7 +463,7 @@ export function PlanEditor() {
                 setCalib([]);
                 return;
             }
-            if (tool !== 'wall' || !drawFrom) return;
+            if (!drawing || !drawFrom) return;
             if (/^[0-9]$/.test(e.key) || ((e.key === ',' || e.key === '.') && !typed.includes(','))) {
                 setTyped(t => t + (e.key === '.' ? ',' : e.key));
                 e.preventDefault();
@@ -433,7 +477,7 @@ export function PlanEditor() {
                 const l = Math.hypot(v[0], v[1]);
                 if (length > 0 && l > 1e-6) {
                     const end = add(drawFrom.point, scale(v, length / l));
-                    const endId = api().addWall(drawFrom.target, { kind: 'point', point: end });
+                    const endId = api().addWall(drawFrom.target, { kind: 'point', point: end }, tool === 'area');
                     setDrawFrom({ target: { kind: 'node', nodeId: endId }, point: end });
                 }
                 setTyped('');
@@ -454,7 +498,7 @@ export function PlanEditor() {
     const selectedWall = sel?.kind === 'wall' ? geometry.frames[sel.id] : undefined;
 
     const preview =
-        tool === 'wall' && drawFrom && cursor
+        drawing && drawFrom && cursor
             ? (() => {
                   let end = cursor.point;
                   const typedLen = parseFloat(typed.replace(',', '.'));
@@ -479,7 +523,7 @@ export function PlanEditor() {
                 onPointerUp={onPointerUp}
                 onPointerLeave={() => !drag.current && (setCursor(null), setHoverPreview(null), setPlacePoint(null))}
                 onWheel={onWheel}
-                onDoubleClick={() => tool === 'wall' && (setDrawFrom(null), setTyped(''))}
+                onDoubleClick={() => drawing && (setDrawFrom(null), setTyped(''))}
                 onContextMenu={e => e.preventDefault()}
             >
                 <defs>
@@ -520,6 +564,20 @@ export function PlanEditor() {
                     />
                 ))}
 
+                {boundaries.map(w => {
+                    const a = floor.nodes[w.a];
+                    const b = floor.nodes[w.b];
+                    return (
+                        <line
+                            key={w.id}
+                            x1={a.x}
+                            y1={a.y}
+                            x2={b.x}
+                            y2={b.y}
+                            className={`boundary ${sel?.kind === 'wall' && sel.id === w.id ? 'selected' : ''}`}
+                        />
+                    );
+                })}
                 {Object.values(geometry.frames).map(fr => (
                     <polygon
                         key={fr.wall.id}
@@ -547,6 +605,14 @@ export function PlanEditor() {
                         ))}
                     </g>
                 )}
+                {roofFeatures.map(({ f, poly }) => (
+                    <g key={f.id} className={`roof-feature ${f.type} ${sel?.kind === 'roofFeature' && sel.id === f.id ? 'selected' : ''}`}>
+                        <polygon points={ptsAttr(poly)} />
+                        <text x={f.x} y={f.y} fontSize={10 * mpp} textAnchor="middle" dominantBaseline="central">
+                            {f.type === 'window' ? 'Dachfenster' : 'Gaube'}
+                        </text>
+                    </g>
+                ))}
 
                 {objectsDrawn.map(({ o, asset }) => (
                     <ObjectSymbol
@@ -607,7 +673,7 @@ export function PlanEditor() {
 
                 {selectedWall && <Dimension a={selectedWall.start} b={selectedWall.end} mpp={mpp} offset={selectedWall.wall.thickness / 2 + px(14)} />}
 
-                {(tool === 'select' || tool === 'wall') &&
+                {(tool === 'select' || drawing) &&
                     Object.values(floor.nodes).map(n => (
                         <circle
                             key={n.id}
@@ -620,7 +686,14 @@ export function PlanEditor() {
 
                 {preview && (
                     <>
-                        <line x1={preview.a[0]} y1={preview.a[1]} x2={preview.b[0]} y2={preview.b[1]} className="wall-preview" strokeWidth={settings.wallThickness} />
+                        <line
+                            x1={preview.a[0]}
+                            y1={preview.a[1]}
+                            x2={preview.b[0]}
+                            y2={preview.b[1]}
+                            className={tool === 'area' ? 'boundary preview' : 'wall-preview'}
+                            strokeWidth={tool === 'area' ? undefined : settings.wallThickness}
+                        />
                         <Dimension a={preview.a} b={preview.b} mpp={mpp} offset={settings.wallThickness / 2 + px(14)} label={typed ? `${typed} m` : undefined} />
                     </>
                 )}
@@ -659,13 +732,15 @@ export function PlanEditor() {
                 </span>
             </div>
             <div className="plan-hint">
-                {tool === 'wall' && (
+                {drawing && (
                     <span className="hint">
                         {drawFrom
                             ? typed
                                 ? `Länge: ${typed} m – Enter übernimmt`
                                 : 'Klicken: nächster Punkt · Länge tippen + Enter · Doppelklick/Esc/Rechtsklick: beenden · Shift: frei'
-                            : 'Klicken, um eine Wand zu beginnen'}
+                            : tool === 'area'
+                              ? 'Bereich: Umriss klicken (z. B. eine Terrasse) – geschlossene Flächen werden zu Bereichen wie Räume'
+                              : 'Klicken, um eine Wand zu beginnen'}
                     </span>
                 )}
                 {(tool === 'door' || tool === 'window') && <span className="hint">Auf eine Wand klicken, um {tool === 'door' ? 'eine Tür' : 'ein Fenster'} einzusetzen</span>}

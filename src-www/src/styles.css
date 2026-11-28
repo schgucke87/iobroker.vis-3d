@@ -413,3 +413,10 @@ button.link { border: none; background: none; color: var(--accent); padding: 0 4
 .asset-tile:hover .asset-edit { display: block; }
 @media (max-width: 900px) { .cad-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; } }
 .roof-plan polygon, .roof-plan line { fill: none; stroke: #b5533a; stroke-width: 1.2; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+.boundary { stroke: #3f8a4a; stroke-width: 2; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; fill: none; }
+.boundary.selected { stroke: var(--accent); stroke-width: 3; }
+.boundary.preview { opacity: 0.7; pointer-events: none; }
+.roof-feature polygon { fill: rgba(181, 83, 58, 0.12); stroke: #b5533a; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.roof-feature.window polygon { fill: rgba(156, 199, 230, 0.45); }
+.roof-feature text { fill: #8a3f2c; pointer-events: none; }
+.roof-feature.selected polygon { stroke: var(--accent); stroke-width: 2.5; }

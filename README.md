@@ -58,7 +58,16 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - „+ Dachboden mit Dach“ legt ein Dachgeschoss mit 1 m Kniestock entlang der Außenwände und Satteldach an –
   darin können Räume, Wände und Möbel wie in jedem anderen Geschoss angelegt werden
 - Wird das Geschoss ausgewählt, hebt sich das Dach ab und blendet aus; in der Gebäudeansicht ist es geschlossen
+- **Dachfenster** und **Gauben** (Schleppgaube, Satteldachgaube) – im Dach-Abschnitt hinzufügen, im Grundriss verschieben;
+  sie sitzen automatisch auf der Dachschräge. Mit Fensterkontakt-Datenpunkt zeigen sie offen/gekippt an
 - Im 2D-Plan zeigen gestrichelte Linien Dachrand und First/Grate
+
+**Keller & Garten**
+- „+ Keller“: Geschoss unter dem Erdgeschoss mit dessen Außenwänden; wird es ausgewählt, blendet das Gelände aus
+- „+ Garten / Außenbereich“: Außenbereich auf Geländehöhe. Mit dem Werkzeug **Bereich** (B) Flächen umranden
+  (unsichtbare Grenzen) – jede geschlossene Fläche ist ein Bereich wie ein Raum: z. B. zwei Terrassen, Wege, Beete,
+  mit Name, Belag (Pflaster, Holzterrasse, Naturstein, Kies, Rasen …), ioBroker-Raum, Temperatur und Vorschlägen;
+  Mauern o. Ä. mit dem Werkzeug Wand
 
 **Modelle & Einrichtung**
 - Import von GLB/glTF, OBJ (+MTL), FBX und STL per Dateiauswahl oder Drag & Drop; Texturen und .bin-Dateien einfach mit auswählen
@@ -173,7 +182,8 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] Hue- und Farb-Lichter in den Vorschlägen
 - [x] Lichtverhältnisse nach Tageszeit, Möbel-Editor (CAD)
 - [x] Dächer und Dachboden
-- [ ] Dächer für L-/U-förmige Grundrisse (bisher: Rechteck um die Außenwände), Gauben, Dachfenster
+- [x] Gauben, Dachfenster, Keller, Garten mit Bereichen
+- [ ] Dächer für L-/U-förmige Grundrisse (bisher: Rechteck um die Außenwände)
 - [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht
 

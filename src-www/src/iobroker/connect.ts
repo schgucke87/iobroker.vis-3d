@@ -130,6 +130,7 @@ export function projectStateIds(p: Project): Set<string> {
                 if (o.blindId) ids.add(o.blindId);
             }
         }
+        for (const rf of f.roof?.features ?? []) if (rf.stateId) ids.add(rf.stateId);
         for (const r of Object.values(f.rooms)) {
             if (r.temperatureId) ids.add(r.temperatureId);
             if (r.humidityId) ids.add(r.humidityId);

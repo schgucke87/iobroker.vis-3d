@@ -45,7 +45,7 @@ export function useLiveSun(enabled: boolean): { sun: SunPosition; location: { la
 }
 
 /** Sky, ground and the global lights, following the project style (or the real time of day). */
-export function Environment({ style }: { style: ProjectStyle }) {
+export function Environment({ style, groundOpacity = 1 }: { style: ProjectStyle; groundOpacity?: number }) {
     const live = useLiveSun(style.sky === 'auto');
     const ground = useMemo(
         // the ground disc has UVs 0…1 over its 160 m diameter
@@ -53,6 +53,12 @@ export function Environment({ style }: { style: ProjectStyle }) {
         [style.groundMaterial, style.groundColor],
     );
     useEffect(() => () => ground.dispose(), [ground]);
+    useEffect(() => {
+        ground.transparent = groundOpacity < 1;
+        ground.opacity = groundOpacity;
+        ground.depthWrite = groundOpacity > 0.5;
+        ground.needsUpdate = true;
+    }, [ground, groundOpacity]);
 
     let l: LightSetup;
     let skySun: [number, number, number] | null = null;

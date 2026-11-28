@@ -126,8 +126,10 @@ export function FloorModel(props: FloorModelProps) {
         const hover = props.hoverRoom === i;
         const glow = hover ? { emissive: new THREE.Color('#5a4200'), emissiveIntensity: 0.35 } : {};
         if (heatColor) return cached(`heat|${heatColor}|${hover}`, () => new THREE.MeshStandardMaterial({ color: heatColor, roughness: 0.8, ...glow }));
-        const pattern = r.meta?.floorMaterial ?? style.floorMaterial;
-        const color = r.meta?.floorColor ?? style.floorColor;
+        // garden areas default to paving, rooms to the project's floor
+        const outdoor = floor.kind === 'outdoor';
+        const pattern = r.meta?.floorMaterial ?? (outdoor ? 'paving' : style.floorMaterial);
+        const color = r.meta?.floorColor ?? (outdoor ? '#a39e94' : style.floorColor);
         return cached(`floor|${pattern}|${color}|${hover}`, () => surfaceMaterial(pattern, color, 1, { roughness: 0.8, ...glow }));
     };
     /** [right face, left face, edges] of a wall: its own colours, else the interior/exterior colour. */

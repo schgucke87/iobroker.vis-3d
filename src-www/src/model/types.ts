@@ -49,6 +49,11 @@ export interface Wall {
     thickness: number;
     height: number;
     openings: Opening[];
+    /**
+     * An invisible boundary (garden areas): bounds rooms/areas like a wall, but
+     * has no body in 3D.
+     */
+    boundary?: boolean;
     /** Colour of the side facing the left normal of a→b (default: interior/exterior colour of the project). */
     colorLeft?: string;
     colorRight?: string;
@@ -66,7 +71,7 @@ export interface RoomMeta {
     /** ioBroker room enum, e.g. "enum.rooms.living_room". */
     enumId?: string;
     floorColor?: string;
-    floorMaterial?: FloorMaterial;
+    floorMaterial?: FloorMaterial | GroundMaterial;
     /** Temperature datapoint: shown on the room label and in the heat map. */
     temperatureId?: string;
     humidityId?: string;
@@ -193,10 +198,43 @@ export interface Roof {
     /** Shed roof: the high side is the other one. */
     flip?: boolean;
     color: string;
+    /** Roof windows and dormers. */
+    features?: RoofFeature[];
 }
+
+/**
+ * A roof window or dormer, placed by a plan position on the roof: it sits on
+ * the roof plane found there and faces down the slope.
+ */
+export interface RoofFeature {
+    id: string;
+    type: 'window' | 'dormer';
+    /** Plan position: the window's centre, or the middle of the dormer's front wall. */
+    x: number;
+    y: number;
+    /** Width along the eaves, metres. */
+    width: number;
+    /** Roof window: length up the slope, metres. */
+    length?: number;
+    /** Dormer: height of the front wall above the roof surface, metres. */
+    frontHeight?: number;
+    /** Dormer roof: shed (Schleppgaube) or gable (Satteldachgaube). */
+    dormerRoof?: 'shed' | 'gable';
+    /** Window contact datapoint (open/tilted shown like windows). */
+    stateId?: string;
+    invert?: boolean;
+}
+
+/**
+ * normal: a storey of the building; basement: below the ground floor, under
+ * the ground; outdoor: the garden at ground level, whose "rooms" are areas
+ * such as terraces (bounded by invisible boundaries).
+ */
+export type FloorKind = 'normal' | 'basement' | 'outdoor';
 
 export interface Floor {
     id: string;
+    kind?: FloorKind;
     name: string;
     /** Clear storey height (floor top to ceiling); default height for new walls. */
     height: number;
