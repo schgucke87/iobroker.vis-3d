@@ -48,6 +48,8 @@ export interface SuggestionResult {
     suggestions: Suggestion[];
     /** ioBroker rooms with supported devices that match no 3D room. */
     unmatched: { id: string; name: string; devices: number }[];
+    /** Supported devices in no ioBroker room that could not be matched to a 3D room by name. */
+    unassigned: DetectedDevice[];
     /** Devices vis-3d cannot show yet (motion detectors, sockets, …). */
     unsupported: DetectedDevice[];
     /** Devices whose datapoints are already used in the project. */
@@ -95,6 +97,40 @@ export function matchRoom(rooms: RoomRef[], e: { id: string; name: string }, ove
     const n = normalizeName(e.name);
     const tail = normalizeName(e.id.split('.').pop() ?? '');
     return rooms.find(r => r.room.meta && (normalizeName(r.name) === n || normalizeName(r.name) === tail)) ?? null;
+}
+
+/** Key of a device in the `overrides` map (the 3D room chosen for a device without ioBroker room). */
+export const deviceKey = (d: DetectedDevice) => `device:${d.id}`;
+
+/**
+ * A named 3D room by name: exactly (`contains` = false) or contained in the
+ * text (`contains` = true, e.g. "Wohnzimmer Decke" → Wohnzimmer; the longest
+ * matching room name wins).
+ */
+export function roomByName(rooms: RoomRef[], text: string | undefined, contains: boolean): RoomRef | null {
+    if (!text) return null;
+    const t = normalizeName(text);
+    let best: RoomRef | null = null;
+    for (const r of rooms) {
+        if (!r.room.meta) continue;
+        const n = normalizeName(r.name);
+        if (n.length < 3) continue;
+        const hit = contains ? t.includes(n) : t === n;
+        if (hit && (!best || n.length > normalizeName(best.name).length)) best = r;
+    }
+    return best;
+}
+
+/** A 3D room for a room name from elsewhere (e.g. a Hue room): same name, or one name contains the other. */
+function roomByHint(rooms: RoomRef[], hint: string | undefined): RoomRef | null {
+    if (!hint) return null;
+    const h = normalizeName(hint);
+    return (
+        roomByName(rooms, hint, false) ??
+        roomByName(rooms, hint, true) ??
+        rooms.find(r => r.room.meta && h.length >= 3 && normalizeName(r.name).includes(h)) ??
+        null
+    );
 }
 
 interface OpeningRef {
@@ -186,7 +222,7 @@ function assignLamps(project: Project, lights: DetectedDevice[], lamps: SceneObj
 export function buildSuggestions(project: Project, detection: DetectionResult, overrides: Record<string, string> = {}): SuggestionResult {
     const rooms = projectRooms(project);
     const used = projectStateIds(project);
-    const result: SuggestionResult = { suggestions: [], unmatched: [], unsupported: [], alreadyBound: 0 };
+    const result: SuggestionResult = { suggestions: [], unmatched: [], unassigned: [], unsupported: [], alreadyBound: 0 };
     // targets handed out as defaults, so two devices don't default to the same window or lamp
     const taken = new Set<string>();
     const seen = new Set<string>();
@@ -194,6 +230,15 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
     const byRoom = new Map<string, DetectedDevice[]>();
     for (const d of detection.devices) byRoom.set(d.roomId, [...(byRoom.get(d.roomId) ?? []), d]);
 
+    // devices per 3D room
+    const groups = new Map<string, { ref: RoomRef; devices: DetectedDevice[] }>();
+    const addTo = (ref: RoomRef, devices: DetectedDevice[]) => {
+        const g = groups.get(ref.key) ?? { ref, devices: [] };
+        g.devices.push(...devices);
+        groups.set(ref.key, g);
+    };
+
+    // devices in ioBroker rooms
     for (const e of detection.rooms) {
         const devices = byRoom.get(e.id) ?? [];
         const supported = devices.filter(isSupported);
@@ -204,6 +249,26 @@ export function buildSuggestions(project: Project, detection: DetectionResult, o
             result.unmatched.push({ id: e.id, name: e.name, devices: supported.length });
             continue;
         }
+        addTo(ref, supported);
+    }
+
+    // devices without an ioBroker room: the user's choice, else the room hint (Hue room), else the name
+    for (const d of byRoom.get('') ?? []) {
+        if (!isSupported(d)) {
+            result.unsupported.push(d);
+            continue;
+        }
+        const choice = overrides[deviceKey(d)];
+        if (choice === '') continue; // explicitly left out
+        const ref =
+            choice !== undefined
+                ? (rooms.find(r => r.key === choice) ?? null)
+                : (roomByHint(rooms, d.roomHint) ?? roomByName(rooms, d.name, true));
+        if (ref) addTo(ref, [d]);
+        else if (!deviceIds(d).some(id => used.has(id))) result.unassigned.push(d);
+    }
+
+    for (const { ref, devices: supported } of groups.values()) {
         const floor = project.floors.find(f => f.id === ref.floorId)!;
         const openings = roomOpenings(floor, ref.room);
         const lamps = lampsIn(project, floor, ref.room);
@@ -394,7 +459,7 @@ export function applySuggestions(project: Project, choices: Choice[], assignment
         switch (s.kind) {
             case 'climate': {
                 const meta = metaFor(ref, d.roomName);
-                if (!meta.enumId) meta.enumId = d.roomId;
+                if (!meta.enumId && d.roomId) meta.enumId = d.roomId;
                 if (d.type !== 'humidity' && d.states.ACTUAL && !meta.temperatureId) meta.temperatureId = d.states.ACTUAL;
                 const hum = d.type === 'humidity' ? d.states.ACTUAL : (d.states.HUMIDITY ?? d.states.SECOND);
                 if (hum && !meta.humidityId) meta.humidityId = hum;
@@ -446,7 +511,7 @@ export function applySuggestions(project: Project, choices: Choice[], assignment
         }
         if (s.kind !== 'climate') {
             const meta = metaFor(ref, d.roomName);
-            if (!meta.enumId) meta.enumId = d.roomId;
+            if (!meta.enumId && d.roomId) meta.enumId = d.roomId;
         }
     }
     return p;

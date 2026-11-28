@@ -128,3 +128,34 @@ describe('duplicates', async () => {
         expect(r.suggestions.filter(s => s.device.states.ACTUAL === 'demo.0.temperatur.wohnzimmer').length).toBe(1);
     });
 });
+
+describe('Hue adapter lamps without ioBroker rooms', async () => {
+    const { hueAdapterObjects } = await import('../iobroker/hueFixture');
+    const { detectDevicesInObjects } = await import('../iobroker/devices');
+    const detection = detectDevicesInObjects(hueAdapterObjects());
+
+    it('assigns them via the Hue room or the name, the rest is offered for manual assignment', () => {
+        const project = demoProject({ bindings: false });
+        const r = buildSuggestions(project, detection);
+        const roomOf = (name: string) => r.suggestions.find(s => s.device.name === name)?.room.name;
+        expect(roomOf('Wohnzimmer Stehlampe')).toBe('Wohnzimmer'); // Hue room
+        expect(roomOf('Spot links')).toBe('Wohnzimmer'); // Hue room, name says nothing
+        expect(roomOf('Flurlicht')).toBe('Flur'); // no Hue room, but the name contains "Flur"
+        expect(r.unassigned.map(d => d.name)).toEqual(['Gartenlaterne']);
+        // the standing lamp of the living room is used for "Wohnzimmer Stehlampe"
+        const s = r.suggestions.find(x => x.device.name === 'Wohnzimmer Stehlampe')!;
+        expect(s.targets.find(t => t.id === s.defaultTarget)!.label).toBe('vorhandene Stehlampe');
+        // saturation 0…254 is passed on as maximum
+        const [light] = lightBehaviors(s.device) as [Extract<Behavior, { type: 'light' }>];
+        expect(light.colorMode).toBe('hue');
+        expect(light.colorMax?.[1]).toBe(254);
+    });
+
+    it('lets the user assign the remaining lamp', () => {
+        const project = demoProject({ bindings: false });
+        const key = projectRooms(project).find(x => x.name === 'Küche')!.key;
+        const r = buildSuggestions(project, detection, { 'device:hue.0.Gartenlaterne': key });
+        expect(r.unassigned).toEqual([]);
+        expect(r.suggestions.find(s => s.device.name === 'Gartenlaterne')!.room.name).toBe('Küche');
+    });
+});

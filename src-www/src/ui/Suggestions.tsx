@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useEditor } from '../model/store';
 import { getBackend, useConnection } from '../iobroker/connect';
 import type { DetectionResult } from '../iobroker/devices';
-import { applySuggestions, buildSuggestions, NEW_LAMP, projectRooms, type Suggestion } from '../model/suggestions';
+import { applySuggestions, buildSuggestions, deviceKey, NEW_LAMP, projectRooms, type Suggestion } from '../model/suggestions';
 
 const ICON: Record<Suggestion['kind'], string> = { climate: '🌡', contact: '🪟', blind: '▤', light: '💡' };
 
@@ -89,6 +89,31 @@ export function SuggestionsDialog({ onClose }: { onClose: () => void }) {
                     {error && <div className="error">{error}</div>}
                     {!result && !error && <div className="loading">Erkenne Geräte in den ioBroker-Räumen …</div>}
 
+                    {result && result.unassigned.length > 0 && (
+                        <section className="unmatched">
+                            <h3>Geräte ohne Raum</h3>
+                            <p className="muted">
+                                Diese Geräte sind in ioBroker keinem Raum zugeordnet (z. B. Hue-Lampen) und ihr Name verrät keinen Raum. In welchem
+                                3D-Raum stehen sie?
+                            </p>
+                            {result.unassigned.map(d => (
+                                <label key={d.id} className="field">
+                                    <span>
+                                        {d.name} <em className="muted">({d.id})</em>
+                                    </span>
+                                    <select value={overrides[deviceKey(d)] ?? ''} onChange={e => setOverrides(o => ({ ...o, [deviceKey(d)]: e.target.value }))}>
+                                        <option value="">– nicht zuordnen –</option>
+                                        {rooms.map(r => (
+                                            <option key={r.key} value={r.key}>
+                                                {r.name} ({r.floorName})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            ))}
+                        </section>
+                    )}
+
                     {result && result.unmatched.length > 0 && (
                         <section className="unmatched">
                             <h3>ioBroker-Räume ohne passenden 3D-Raum</h3>
@@ -131,7 +156,24 @@ export function SuggestionsDialog({ onClose }: { onClose: () => void }) {
                                         <input type="checkbox" checked={enabled(s)} disabled={!!s.disabledReason} onChange={() => toggle(s.key)} />
                                         <span className="icon">{s.kind === 'contact' && s.device.type === 'door' ? '🚪' : ICON[s.kind]}</span>
                                         <div className="what">
-                                            <div className="name">{s.title}</div>
+                                            <div className="name">
+                                                {s.title}
+                                                {!s.device.roomId && (
+                                                    <select
+                                                        className="room-pick"
+                                                        title="Raum ändern"
+                                                        value={overrides[deviceKey(s.device)] ?? s.room.key}
+                                                        onChange={e => setOverrides(o => ({ ...o, [deviceKey(s.device)]: e.target.value }))}
+                                                    >
+                                                        <option value="">– nicht zuordnen –</option>
+                                                        {rooms.map(r => (
+                                                            <option key={r.key} value={r.key}>
+                                                                {r.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
                                             <div className="id">{mainId(s)}</div>
                                         </div>
                                         <div className="how">

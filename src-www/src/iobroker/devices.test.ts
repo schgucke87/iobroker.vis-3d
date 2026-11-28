@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { detectDevicesInObjects } from './devices';
+import { hueAdapterObjects } from './hueFixture';
 
 type O = Record<string, ioBroker.Object>;
 
@@ -94,5 +95,27 @@ describe('Hue lamps (structure of the ioBroker Hue adapter)', () => {
         expect(spot.states.SATURATION).toBe('hue.0.Wohnzimmer_Spot.sat');
         expect(spot.maxOf.HUE).toBe(360);
         expect(devices.find(d => d.id === 'hue.0.Flur_Ambiance')!.type).toBe('ct');
+    });
+});
+
+describe('ioBroker Hue adapter (no ioBroker rooms)', () => {
+    it('finds the lamps, takes the room from the Hue room and skips the groups', () => {
+        const { devices } = detectDevicesInObjects(hueAdapterObjects());
+        const byId = Object.fromEntries(devices.map(d => [d.id, d]));
+        // the Hue room and entertainment area are no lamps
+        expect(byId['hue.0.Wohnzimmer']).toBeUndefined();
+        expect(byId['hue.0.Unterhaltung']).toBeUndefined();
+        const lamp = byId['hue.0.Wohnzimmer_Stehlampe'];
+        expect(lamp.type).toBe('hue');
+        expect(lamp.roomId).toBe('');
+        expect(lamp.roomHint).toBe('Wohnzimmer');
+        expect(lamp.states.ON).toBe('hue.0.Wohnzimmer_Stehlampe.on');
+        expect(lamp.states.SATURATION).toBe('hue.0.Wohnzimmer_Stehlampe.sat');
+        expect(lamp.maxOf.SATURATION).toBe(254);
+        expect(byId['hue.0.Spot_links'].type).toBe('ct');
+        expect(byId['hue.0.Spot_links'].roomHint).toBe('Wohnzimmer');
+        expect(byId['hue.0.Flurlicht'].type).toBe('dimmer');
+        expect(byId['hue.0.Flurlicht'].roomHint).toBeUndefined();
+        expect(devices.length).toBe(4);
     });
 });

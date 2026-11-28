@@ -31,8 +31,11 @@ export interface DetectedDevice {
     name: string;
     /** Type-detector type (also unsupported ones, e.g. "motion"). */
     type: string;
+    /** ioBroker room enum ('' when the device is in no ioBroker room). */
     roomId: string;
     roomName: string;
+    /** Room name from elsewhere for devices without an ioBroker room (e.g. the Hue bridge's rooms). */
+    roomHint?: string;
     /** State names of the pattern (SET, ACTUAL, ON, …) → datapoint id. */
     states: Record<string, string>;
     /** common.max of the main datapoint (for dimmers and blinds). */
@@ -88,55 +91,135 @@ export function detectDevicesInObjects(objects: Record<string, ioBroker.Object>)
     const devices: DetectedDevice[] = [];
     const rooms: DetectionResult['rooms'] = [];
 
+    const detectAt = (id: string, roomId: string, roomName: string, roomHint?: string, onlySupported = false) => {
+        let controls: PatternControl[] | null = null;
+        try {
+            controls = detector.detect({
+                objects,
+                id,
+                _keysOptional: keys,
+                _keysOptionalSorted: true,
+                _usedIdsOptional: usedIds,
+                ignoreIndicators: ['UNREACH_STICKY'],
+                excludedTypes: [Types.info],
+            });
+        } catch (e) {
+            console.warn(`type-detector: ${id}`, e);
+        }
+        const found: DetectedDevice[] = [];
+        for (const control of controls ?? []) {
+            const states: Record<string, string> = {};
+            const maxOf: Record<string, number> = {};
+            for (const s of control.states) {
+                if (!s.id) continue;
+                states[s.name] = s.id;
+                const max = (objects[s.id] as ioBroker.StateObject | undefined)?.common?.max;
+                if (typeof max === 'number') maxOf[s.name] = max;
+            }
+            if (!Object.keys(states).length) continue;
+            const main = states.SET ?? states.ACTUAL ?? Object.values(states)[0];
+            const mainName = Object.keys(states).find(k => states[k] === main)!;
+            found.push({
+                id,
+                name: objectName(objects[id]?.common?.name, id.split('.').pop()!),
+                type: control.type,
+                roomId,
+                roomName,
+                roomHint,
+                states,
+                maxOf,
+                max: maxOf[mainName],
+            });
+        }
+        const merged = mergeLights(found);
+        devices.push(...(onlySupported ? merged.filter(isSupported) : merged));
+    };
+
+    // 1. everything that is assigned to an ioBroker room
     const roomEnums = keys
         .filter(k => k.startsWith('enum.rooms.') && objects[k].type === 'enum')
         .map(k => objects[k] as ioBroker.EnumObject);
-
+    const members = new Set<string>();
     for (const room of roomEnums) {
         const roomName = objectName(room.common?.name, room._id.split('.').pop()!);
         rooms.push({ id: room._id, name: roomName });
         for (const member of room.common?.members ?? []) {
             if (!objects[member]) continue;
-            let controls: PatternControl[] | null = null;
-            try {
-                controls = detector.detect({
-                    objects,
-                    id: member,
-                    _keysOptional: keys,
-                    _keysOptionalSorted: true,
-                    _usedIdsOptional: usedIds,
-                    ignoreIndicators: ['UNREACH_STICKY'],
-                    excludedTypes: [Types.info],
-                });
-            } catch (e) {
-                console.warn(`type-detector: ${member}`, e);
-            }
-            const found: DetectedDevice[] = [];
-            for (const control of controls ?? []) {
-                const states: Record<string, string> = {};
-                const maxOf: Record<string, number> = {};
-                for (const s of control.states) {
-                    if (!s.id) continue;
-                    states[s.name] = s.id;
-                    const max = (objects[s.id] as ioBroker.StateObject | undefined)?.common?.max;
-                    if (typeof max === 'number') maxOf[s.name] = max;
-                }
-                if (!Object.keys(states).length) continue;
-                const main = states.SET ?? states.ACTUAL ?? Object.values(states)[0];
-                const mainName = Object.keys(states).find(k => states[k] === main)!;
-                found.push({
-                    id: member,
-                    name: objectName(objects[member]?.common?.name, member.split('.').pop()!),
-                    type: control.type,
-                    roomId: room._id,
-                    roomName,
-                    states,
-                    maxOf,
-                    max: maxOf[mainName],
-                });
-            }
-            devices.push(...mergeLights(found));
+            members.add(member);
+            detectAt(member, room._id, roomName);
         }
+    }
+
+    // 2. devices without an ioBroker room (e.g. the Hue adapter never assigns rooms);
+    //    vis-3d matches them to its rooms later, using the hints collected here
+    const hints = roomHints(objects, keys);
+    const isMemberOrInside = (id: string) => {
+        for (const m of members) if (id === m || id.startsWith(`${m}.`)) return true;
+        return false;
+    };
+    for (const id of keys) {
+        const obj = objects[id];
+        if (obj.type !== 'channel' && obj.type !== 'device') continue;
+        if (isGroup(obj) || isMemberOrInside(id) || !hasRelevantStates(objects, keys, id)) continue;
+        // outside rooms only what vis-3d can use: a lamp's transition time is no "slider" device worth listing
+        detectAt(id, '', '', hints.get(id), true);
     }
     return { devices, rooms };
 }
+
+/** Roles of datapoints that make a channel worth running the detector on. */
+const RELEVANT_ROLE = /^(switch\.light|switch$|level\.(dimmer|brightness|blind|color\.|temperature)|value\.(temperature|humidity|window)|sensor\.(window|door))/;
+
+function hasRelevantStates(objects: Record<string, ioBroker.Object>, keys: string[], id: string): boolean {
+    const prefix = `${id}.`;
+    // keys are sorted: binary search for the first child
+    let lo = 0;
+    let hi = keys.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (keys[mid] < prefix) lo = mid + 1;
+        else hi = mid;
+    }
+    for (let i = lo; i < keys.length && keys[i].startsWith(prefix); i++) {
+        const o = objects[keys[i]];
+        if (o.type === 'state' && RELEVANT_ROLE.test((o.common as ioBroker.StateCommon)?.role ?? '')) return true;
+    }
+    return false;
+}
+
+const GROUP_ROLES = ['Room', 'Zone', 'LightGroup', 'Entertainment', 'Luminaire', 'LightSource'];
+
+/** Hue (and similar) groups: rooms and zones of the bridge, not lamps of their own. */
+function isGroup(obj: ioBroker.Object): boolean {
+    const native = obj.native as { lights?: unknown } | undefined;
+    return Array.isArray(native?.lights) || GROUP_ROLES.includes(String(obj.common?.role ?? ''));
+}
+
+/**
+ * Room names for lamps from the rooms of the Hue bridge: the Hue adapter
+ * creates a channel per Hue room with the ids of its lamps in native.lights,
+ * and every lamp channel carries its Hue id in native.id.
+ */
+function roomHints(objects: Record<string, ioBroker.Object>, keys: string[]): Map<string, string> {
+    const hints = new Map<string, string>();
+    const groups = keys.map(k => objects[k]).filter(o => o.type === 'channel' && isGroup(o));
+    // rooms win over zones and other groups
+    groups.sort((a, b) => Number(groupType(b) === 'Room') - Number(groupType(a) === 'Room'));
+    for (const g of groups) {
+        const t = groupType(g);
+        if (t !== 'Room' && t !== 'Zone') continue;
+        const ns = g._id.split('.').slice(0, 2).join('.');
+        const lights = ((g.native as { lights?: unknown[] }).lights ?? []).map(String);
+        const name = objectName((g.native as { name?: string }).name ?? g.common?.name, g._id.split('.').pop()!);
+        for (const k of keys) {
+            if (!k.startsWith(`${ns}.`)) continue;
+            const o = objects[k];
+            if (o.type !== 'channel' || isGroup(o)) continue;
+            const lid = (o.native as { id?: unknown } | undefined)?.id;
+            if (lid !== undefined && lights.includes(String(lid)) && !hints.has(k)) hints.set(k, name);
+        }
+    }
+    return hints;
+}
+
+const groupType = (o: ioBroker.Object) => String((o.native as { type?: string } | undefined)?.type ?? o.common?.role ?? '');
