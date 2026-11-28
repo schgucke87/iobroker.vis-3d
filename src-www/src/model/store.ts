@@ -64,7 +64,7 @@ export interface EditorState {
     addWall(from: ops.AttachTarget, to: ops.AttachTarget): string;
     updateWall(id: string, patch: Partial<Pick<Wall, 'thickness' | 'height' | 'colorLeft' | 'colorRight'>>): void;
     /** Changes the project style; `undefined` values reset a field to its default. */
-    updateStyle(patch: Partial<Record<keyof ProjectStyle, string | undefined>>): void;
+    updateStyle(patch: { [K in keyof ProjectStyle]?: ProjectStyle[K] | undefined }): void;
     deleteSelection(): void;
     addOpening(wallId: string, type: Opening['type'], offset: number): void;
     updateOpening(wallId: string, id: string, patch: Partial<Opening>): void;

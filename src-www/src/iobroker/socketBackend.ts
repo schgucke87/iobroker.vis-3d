@@ -138,6 +138,13 @@ export class SocketBackend implements Backend {
         return this.objects;
     }
 
+    async getLocation() {
+        const cfg = (await this.conn.getObject('system.config').catch(() => null)) as ioBroker.SystemConfigObject | null;
+        const latitude = Number(cfg?.common?.latitude);
+        const longitude = Number(cfg?.common?.longitude);
+        return Number.isFinite(latitude) && Number.isFinite(longitude) && (latitude !== 0 || longitude !== 0) ? { latitude, longitude } : null;
+    }
+
     async detectDevices(): Promise<DetectionResult> {
         const o = await this.loadObjects();
         return detectDevicesInObjects({ ...o.states, ...o.channels, ...o.devices, ...o.rooms, ...o.functions });

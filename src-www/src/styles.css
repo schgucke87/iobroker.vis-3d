@@ -388,3 +388,4 @@ button.link { border: none; background: none; color: var(--accent); padding: 0 4
 .swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
 .tabs button { font-size: 12px; }
 .suggestion .room-pick { margin-left: 8px; font-size: 11px; padding: 1px 4px; color: var(--muted); }
+.plan-hud .north { padding: 1px 4px !important; display: flex; align-items: center; }

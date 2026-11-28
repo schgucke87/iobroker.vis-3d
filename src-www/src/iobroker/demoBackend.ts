@@ -155,6 +155,10 @@ export class DemoBackend implements Backend {
         }));
     }
 
+    async getLocation() {
+        return null;
+    }
+
     /** The demo datapoints as ioBroker objects, run through the real type-detector. */
     async detectDevices(): Promise<DetectionResult> {
         const objects: Record<string, ioBroker.Object> = {};

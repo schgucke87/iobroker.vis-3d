@@ -640,6 +640,12 @@ export function PlanEditor() {
             <div className="plan-hud">
                 <button onClick={() => fitView(floor)} title="Ansicht einpassen">⤢ Einpassen</button>
                 <span>{floor.name}</span>
+                <span className="north" title={`Norden (${project.style?.northAngle ?? 0}°) – einstellbar unter Gestaltung`}>
+                    <svg viewBox="-12 -12 24 24" width="22" height="22" style={{ transform: `rotate(${project.style?.northAngle ?? 0}deg)` }}>
+                        <path d="M0 -10 L5 6 L0 3 L-5 6 Z" fill="#c43d3d" />
+                        <text y="-1" fontSize="7" textAnchor="middle" fill="#fff" fontWeight="700">N</text>
+                    </svg>
+                </span>
             </div>
             <div className="plan-hint">
                 {tool === 'wall' && (

@@ -187,7 +187,7 @@ export interface Floor {
 
 export type FloorMaterial = 'plain' | 'wood' | 'tiles' | 'carpet' | 'stone';
 export type GroundMaterial = 'plain' | 'grass' | 'gravel' | 'paving' | 'snow';
-export type SkyMode = 'color' | 'day' | 'sunset' | 'night';
+export type SkyMode = 'auto' | 'color' | 'day' | 'sunset' | 'night';
 
 /** Look of the whole project; every field has a default (see projectStyle()). */
 export interface ProjectStyle {
@@ -199,6 +199,8 @@ export interface ProjectStyle {
     groundMaterial: GroundMaterial;
     sky: SkyMode;
     skyColor: string;
+    /** Where north points in the floor plan, degrees clockwise from "up" (for the sun position). */
+    northAngle: number;
 }
 
 export interface Project {

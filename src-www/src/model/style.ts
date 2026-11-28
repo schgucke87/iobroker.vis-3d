@@ -9,6 +9,7 @@ export const DEFAULT_STYLE: ProjectStyle = {
     groundMaterial: 'plain',
     sky: 'color',
     skyColor: '#e9edf2',
+    northAngle: 0,
 };
 
 export const projectStyle = (p: Project): ProjectStyle => ({ ...DEFAULT_STYLE, ...p.style });
@@ -30,6 +31,7 @@ export const GROUND_MATERIALS: Record<GroundMaterial, string> = {
 };
 
 export const SKY_MODES: Record<SkyMode, string> = {
+    auto: 'Tageszeit (live)',
     color: 'Einfarbig',
     day: 'Tag',
     sunset: 'Abendrot',

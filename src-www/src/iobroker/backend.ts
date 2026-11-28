@@ -53,6 +53,8 @@ export interface Backend {
     setState(id: string, val: StateValue): Promise<void>;
     listDatapoints(): Promise<DatapointInfo[]>;
     listRooms(): Promise<EnumInfo[]>;
+    /** Location configured in ioBroker (system settings), for the sun position. */
+    getLocation(): Promise<{ latitude: number; longitude: number } | null>;
     /** Devices per room, detected with ioBroker's type-detector. */
     detectDevices(): Promise<DetectionResult>;
     files: FileStore | null;

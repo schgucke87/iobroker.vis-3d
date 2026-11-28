@@ -1,6 +1,7 @@
 import { useEditor } from '../model/store';
 import { FLOOR_DEFAULT_COLOR, FLOOR_MATERIALS, GROUND_DEFAULT_COLOR, GROUND_MATERIALS, projectStyle, SKY_MODES, SWATCHES } from '../model/style';
 import type { FloorMaterial, GroundMaterial, SkyMode } from '../model/types';
+import { useLiveSun } from '../view3d/Environment';
 
 /** Colour picker with a row of suggested colours and an optional "default" reset. */
 export function ColorField(props: {
@@ -58,6 +59,23 @@ export function StylePanel() {
             </div>
             {style.sky === 'color' && <ColorField label="Farbe" value={project.style?.skyColor} fallback={style.skyColor} swatches={SWATCHES.sky} onChange={skyColor => set({ skyColor })} />}
             {style.sky === 'night' && <div className="hint-small">Nachts wird die Grundbeleuchtung gedimmt – eingeschaltete Lampen kommen besser zur Geltung.</div>}
+            {style.sky === 'auto' && <LiveSunInfo />}
+            <label className="field">
+                <span>Nordrichtung im Plan</span>
+                <span className="input-unit">
+                    <input
+                        type="number"
+                        step={5}
+                        value={style.northAngle}
+                        onChange={e => {
+                            const v = parseFloat(e.target.value);
+                            if (Number.isFinite(v)) set({ northAngle: ((v % 360) + 360) % 360 });
+                        }}
+                    />
+                    <em>°</em>
+                </span>
+            </label>
+            <div className="hint-small">0° = Norden zeigt im Grundriss nach oben, 90° = nach rechts. Bestimmt, von wo die Sonne scheint.</div>
 
             <h3>Grundstück</h3>
             <label className="field">
@@ -102,6 +120,23 @@ export function StylePanel() {
             </label>
             <ColorField label="Farbe" value={project.style?.floorColor} fallback={style.floorColor} swatches={SWATCHES.floor} onChange={floorColor => set({ floorColor })} />
             <div className="hint-small">Jeder Raum kann einen eigenen Bodenbelag bekommen (Raum anklicken).</div>
+        </div>
+    );
+}
+
+function LiveSunInfo() {
+    const live = useLiveSun(true);
+    const alt = (live.sun.altitude * 180) / Math.PI;
+    const az = (live.sun.azimuth * 180) / Math.PI;
+    const dirs = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
+    const dir = dirs[Math.round(az / 45) % 8];
+    return (
+        <div className="hint-small">
+            {live.now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr · Sonne{' '}
+            {alt > 0 ? `${alt.toFixed(0)}° hoch im ${dir}` : `${(-alt).toFixed(0)}° unter dem Horizont`}
+            <br />
+            Standort {live.location.latitude.toFixed(2)}° N, {live.location.longitude.toFixed(2)}° O{' '}
+            {live.fromIoBroker ? '(aus den ioBroker-Systemeinstellungen)' : '(Standard – in den ioBroker-Systemeinstellungen keiner hinterlegt)'}
         </div>
     );
 }
