@@ -1,8 +1,12 @@
 {
   "common": {
     "name": "vis-3d",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "news": {
+      "0.2.0": {
+        "en": "Detect walls from the floor plan template (with windows and doors)",
+        "de": "Wände automatisch aus der Grundriss-Vorlage erkennen (mit Fenstern und Türen)"
+      },
       "0.1.1": {
         "en": "Floor plan template stays visible when rooms are closed",
         "de": "Grundriss-Vorlage bleibt sichtbar, wenn Räume geschlossen sind"

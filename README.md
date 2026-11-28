@@ -108,6 +108,16 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - Speichern legt das Möbel in die Bibliothek; es bleibt bearbeitbar (✎ auf der Kachel), platzierte Exemplare aktualisieren sich
 - Tasten: T/R/S Verschieben/Drehen/Größe, H Körper↔Bohrung, Strg+G / Strg+Umschalt+G gruppieren/lösen, Strg+D, Strg+A, Entf, Strg+Z/Y
 
+**Wände aus der Grundriss-Vorlage erkennen**
+- „🧱 Wände erkennen“ unter Grundriss-Vorlage (nach dem Kalibrieren des Maßstabs): sucht gerade Wände – schraffiert,
+  schwarz gefüllt oder als Doppellinie – samt Fenstern und Türen im Bild, direkt im Browser
+- Ergebnis als Vorschlag über der Vorlage: Klick schließt eine Wand aus, „Übernehmen“ legt sie als Wände mit Fenstern und
+  Türen an (ein Schritt, rückgängig machbar); Wandstärken werden auf übliche Maße gerundet
+- Innenwände, die an einer Türöffnung enden, werden bis zur nächsten Wand verlängert und bekommen dort eine Tür,
+  damit sich die Räume schließen
+- Grenzen: nur waagerechte/senkrechte Wände; Text, Maßketten und Möbel werden weitgehend ignoriert, einzelne
+  Fehlerkennungen (Treppen, Schächte) lassen sich in der Vorschau abwählen
+
 **Gestaltung**
 - Himmel: **Tageszeit (live)** – Sonnenstand aus Uhrzeit und Standort (ioBroker-Systemeinstellungen), Licht und Himmel
   wechseln von Tag über Dämmerung zu Nacht; Nordrichtung des Grundrisses einstellbar – oder fest: einfarbig, Tag, Abendrot, Nacht
@@ -204,6 +214,7 @@ Wände werden parametrisch als Graph gespeichert (Knoten + Wände mit Stärke, H
 - [x] Gauben, Dachfenster, Keller, Garten mit Bereichen
 - [x] Live-Wetter (daswetter), Dach in der Explosionsansicht
 - [x] Schneedecke (Datenpunkt / Open-Meteo)
+- [x] Wände aus der Grundriss-Vorlage erkennen
 - [ ] Dächer für L-/U-förmige Grundrisse (bisher: Rechteck um die Außenwände)
 - [ ] Weitere Gerätetypen in den Vorschlägen (Bewegungsmelder, Steckdosen, Medien)
 - [ ] vis-2-Widget zum Einbetten der 3D-Ansicht

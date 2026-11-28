@@ -435,3 +435,25 @@ button.link { border: none; background: none; color: var(--accent); padding: 0 4
 /* with a floor plan template, room fills stay see-through so the template remains visible while drawing */
 .plan-svg.has-template .room { fill-opacity: 0.3; }
 .plan-svg.has-template .room.selected { fill-opacity: 0.45; }
+
+/* detected walls waiting to be accepted */
+.proposal polygon { fill: rgba(40, 110, 230, 0.45); stroke: #1f4fb0; stroke-width: 0.02; cursor: pointer; }
+.proposal.off polygon { fill: rgba(150, 150, 150, 0.15); stroke: #999; stroke-dasharray: 0.08 0.06; }
+.proposal .proposal-window { fill: rgba(30, 170, 90, 0.75); stroke: none; }
+.proposal .proposal-door { fill: rgba(220, 70, 40, 0.75); stroke: none; }
+.proposal-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 48px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    font-size: 12px;
+    z-index: 5;
+}

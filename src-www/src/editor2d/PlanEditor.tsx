@@ -1,3 +1,4 @@
+import { applyProposals, discardProposals, toggleProposal, useWallProposals, type WallProposal } from './wallProposals';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DetectedRoom, Floor, Vec2 } from '../model/types';
 import { activeFloor, findAsset, useEditor } from '../model/store';
@@ -42,6 +43,8 @@ export function PlanEditor() {
     const placeRotation = useEditor(s => s.placeRotation);
     const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
     const api = useEditor.getState;
+    const proposalState = useWallProposals();
+    const proposals = proposalState.floorId === floor.id ? proposalState.proposals : [];
 
     const svgRef = useRef<SVGSVGElement>(null);
     const [size, setSize] = useState({ w: 0, h: 0 });
@@ -589,6 +592,10 @@ export function PlanEditor() {
                     <polygon key={h.nodeId} points={ptsAttr(h.polygon)} className="wall hub" />
                 ))}
 
+                {proposals.map(p => (
+                    <ProposalShape key={p.id} p={p} />
+                ))}
+
                 {Object.values(geometry.frames).flatMap(fr =>
                     fr.wall.openings.map(raw => {
                         const o = clampOpening(raw, fr);
@@ -731,6 +738,17 @@ export function PlanEditor() {
                     </svg>
                 </span>
             </div>
+            {proposals.length > 0 && (
+                <div className="proposal-bar">
+                    <span>
+                        {proposals.filter(p => p.enabled).length} von {proposals.length} erkannten Wänden ausgewählt · Klick auf eine Wand schließt sie aus
+                    </span>
+                    <button className="primary" onClick={applyProposals}>
+                        Übernehmen
+                    </button>
+                    <button onClick={discardProposals}>Verwerfen</button>
+                </div>
+            )}
             <div className="plan-hint">
                 {drawing && (
                     <span className="hint">
@@ -765,7 +783,7 @@ export function PlanEditor() {
                         // scale the image around the first calibration point
                         const nx = calib[0][0] - (calib[0][0] - bg.x) * k;
                         const ny = calib[0][1] - (calib[0][1] - bg.y) * k;
-                        api().updateFloor(floor.id, { background: { ...bg, scale: bg.scale * k, x: nx, y: ny } });
+                        api().updateFloor(floor.id, { background: { ...bg, scale: bg.scale * k, x: nx, y: ny, calibrated: true } });
                         setCalib([]);
                         setCalibLen('');
                         api().setTool('select');
@@ -869,6 +887,43 @@ function Dimension({ a, b, mpp, offset, label }: { a: Vec2; b: Vec2; mpp: number
                     {label ?? fmt(l)}
                 </text>
             </g>
+        </g>
+    );
+}
+
+/** A detected wall waiting to be accepted; clicking it excludes or includes it. */
+function ProposalShape({ p }: { p: WallProposal }) {
+    const dx = p.b[0] - p.a[0];
+    const dy = p.b[1] - p.a[1];
+    const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L;
+    const uy = dy / L;
+    const nx = (-uy * p.thickness) / 2;
+    const ny = (ux * p.thickness) / 2;
+    const rect = (f: number, t: number, grow = 0) => {
+        const gx = (-uy * grow) / 2;
+        const gy = (ux * grow) / 2;
+        const A = [p.a[0] + ux * f, p.a[1] + uy * f];
+        const B = [p.a[0] + ux * t, p.a[1] + uy * t];
+        return [
+            [A[0] + nx + gx, A[1] + ny + gy],
+            [B[0] + nx + gx, B[1] + ny + gy],
+            [B[0] - nx - gx, B[1] - ny - gy],
+            [A[0] - nx - gx, A[1] - ny - gy],
+        ]
+            .map(q => q.join(','))
+            .join(' ');
+    };
+    return (
+        <g
+            className={`proposal ${p.enabled ? '' : 'off'}`}
+            onPointerDown={e => {
+                e.stopPropagation();
+                toggleProposal(p.id);
+            }}
+        >
+            <polygon points={rect(0, L)} />
+            {p.enabled && p.openings.map((o, i) => <polygon key={i} className={`proposal-${o.type}`} points={rect(o.from, o.to, 0.06)} />)}
         </g>
     );
 }

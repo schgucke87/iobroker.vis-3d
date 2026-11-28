@@ -89,6 +89,8 @@ export interface BackgroundImage {
     pxHeight: number;
     opacity: number;
     visible: boolean;
+    /** The scale was set with "Maßstab kalibrieren" (wall detection needs it). */
+    calibrated?: boolean;
 }
 
 /** Where an object is mounted; decides how it snaps when placed. */

@@ -1,3 +1,4 @@
+import { detectFromTemplate, useWallProposals } from '../editor2d/wallProposals';
 import { useEffect, useMemo, useState } from 'react';
 import { activeFloor, findAsset, floorElevations, useEditor } from '../model/store';
 import { MOUNT_LABELS } from './Library';
@@ -373,7 +374,28 @@ function BackgroundProps() {
                 <button onClick={() => s().setTool('calibrate')}>Maßstab kalibrieren</button>
                 <button onClick={() => s().setTool('background')}>Verschieben</button>
             </div>
+            <WallDetection calibrated={!!bg.calibrated} />
             <button className="danger" onClick={() => s().updateFloor(floor.id, { background: undefined })}>Vorlage entfernen</button>
+        </>
+    );
+}
+
+function WallDetection({ calibrated }: { calibrated: boolean }) {
+    const busy = useWallProposals(s => s.busy);
+    const count = useWallProposals(s => s.proposals.length);
+    const error = useWallProposals(s => s.error);
+    return (
+        <>
+            <button onClick={() => void detectFromTemplate()} disabled={busy}>
+                {busy ? 'Erkenne Wände …' : '🧱 Wände erkennen'}
+            </button>
+            <div className="hint-small">
+                {calibrated
+                    ? 'Sucht gerade Wände (schraffiert, gefüllt oder als Doppellinie) samt Fenstern im Bild. Das Ergebnis erscheint als Vorschlag im Grundriss.'
+                    : 'Bitte zuerst den Maßstab kalibrieren – die Erkennung braucht ihn, um Wände von Text und Maßlinien zu unterscheiden.'}
+                {count > 0 && ` ${count} Wände erkannt – im Grundriss prüfen und übernehmen.`}
+                {error && ` ${error}`}
+            </div>
         </>
     );
 }
