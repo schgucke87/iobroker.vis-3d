@@ -97,17 +97,69 @@ export function onAssetsChanged(fn: () => void) {
     return () => listeners.delete(fn);
 }
 
+export interface ModelMaterial {
+    /** Index in the order the materials appear in the model (key of SceneObject.materialColors). */
+    index: number;
+    name: string;
+    color: string;
+}
+
+/** The distinct materials of a model, in a stable order. */
+export function listMaterials(proto: THREE.Object3D): ModelMaterial[] {
+    const seen = new Map<THREE.Material, ModelMaterial>();
+    proto.traverse(o => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+            if (seen.has(mat)) continue;
+            const color = (mat as THREE.MeshStandardMaterial).color;
+            seen.set(mat, {
+                index: seen.size,
+                name: mat.name || o.name || `Material ${seen.size + 1}`,
+                color: color ? `#${color.getHexString()}` : '#ffffff',
+            });
+        }
+    });
+    return [...seen.values()];
+}
+
 /**
  * Deep clone with its own materials, so each placed instance can be faded or
- * tinted independently. Geometry and textures stay shared.
+ * tinted independently. Geometry and textures stay shared. `colors` overrides
+ * the colour of materials by their index (see listMaterials).
  */
-export function cloneInstance(proto: THREE.Object3D): THREE.Object3D {
+export function cloneInstance(proto: THREE.Object3D, colors?: Record<string, string>): THREE.Object3D {
+    // index the prototype's materials first; the shallow clone still shares them
+    const index = new Map<THREE.Material, number>();
+    for (const m of listMaterialsRaw(proto)) index.set(m, index.size);
     const copy = proto.clone(true);
+    const clones = new Map<THREE.Material, THREE.Material>();
+    const cloneOf = (mat: THREE.Material) => {
+        let c = clones.get(mat);
+        if (!c) {
+            c = mat.clone();
+            const override = colors?.[String(index.get(mat))];
+            const std = c as THREE.MeshStandardMaterial;
+            if (override && std.color) std.color.set(override);
+            clones.set(mat, c);
+        }
+        return c;
+    };
     copy.traverse(o => {
         const m = o as THREE.Mesh;
-        if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone();
+        if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(cloneOf) : cloneOf(m.material);
     });
     return copy;
+}
+
+function listMaterialsRaw(proto: THREE.Object3D): THREE.Material[] {
+    const list: THREE.Material[] = [];
+    proto.traverse(o => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        for (const mat of Array.isArray(m.material) ? m.material : [m.material]) if (!list.includes(mat)) list.push(mat);
+    });
+    return list;
 }
 
 // ---------- export / import of asset data inside project files ----------

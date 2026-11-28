@@ -1,13 +1,16 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { activeFloor, findAsset, floorElevations, useEditor } from '../model/store';
 import { MOUNT_LABELS } from './Library';
 import { BehaviorList } from './Behaviors';
 import { StateIdField } from './Datapoints';
-import { detectRooms } from '../geometry/rooms';
+import { detectRooms, wallSideRooms } from '../geometry/rooms';
+import { ColorField } from './Style';
+import { FLOOR_MATERIALS, projectStyle, SWATCHES } from '../model/style';
+import { listMaterials, loadAsset, type ModelMaterial } from '../assets/assetStore';
 import { pointInPolygon } from '../geometry/vec';
 import { computeWallGeometry } from '../geometry/walls';
 import { readImageFile } from '../storage/local';
-import type { Opening } from '../model/types';
+import type { FloorMaterial, Opening } from '../model/types';
 
 function NumberField(props: { label: string; value: number; step?: number; min?: number; unit?: string; onChange: (v: number) => void }) {
     return (
@@ -70,6 +73,7 @@ export function PropertiesPanel() {
 
     const rooms = useMemo(() => detectRooms(floor), [floor]);
     const geometry = useMemo(() => computeWallGeometry(floor), [floor]);
+    const style = projectStyle(useEditor(st => st.project));
 
     let content: React.ReactNode = null;
     if (selection?.kind === 'wall' && floor.walls[selection.id]) {
@@ -86,6 +90,7 @@ export function PropertiesPanel() {
                     ))}
                 </div>
                 <NumberField label="Höhe" unit="m" value={w.height} min={0.3} onChange={v => s().updateWall(w.id, { height: Math.max(0.3, v) })} />
+                <WallColors wallId={w.id} />
                 <div className="info">{w.openings.length} Öffnung(en)</div>
                 <button className="danger" onClick={() => s().deleteSelection()}>Wand löschen</button>
             </>
@@ -149,10 +154,28 @@ export function PropertiesPanel() {
                         <span>ioBroker-Raum</span>
                         <input value={room.meta?.enumId ?? ''} placeholder="enum.rooms.…" onChange={e => s().updateRoom(selection.anchor, { enumId: e.target.value || undefined })} />
                     </label>
+                    <h3>Boden</h3>
                     <label className="field">
-                        <span>Bodenfarbe</span>
-                        <input type="color" value={room.meta?.floorColor ?? '#d8c6a5'} onChange={e => s().updateRoom(selection.anchor, { floorColor: e.target.value })} />
+                        <span>Belag</span>
+                        <select
+                            value={room.meta?.floorMaterial ?? ''}
+                            onChange={e => s().updateRoom(selection.anchor, { floorMaterial: (e.target.value || undefined) as FloorMaterial | undefined })}
+                        >
+                            <option value="">Standard ({FLOOR_MATERIALS[style.floorMaterial]})</option>
+                            {(Object.keys(FLOOR_MATERIALS) as FloorMaterial[]).map(m => (
+                                <option key={m} value={m}>
+                                    {FLOOR_MATERIALS[m]}
+                                </option>
+                            ))}
+                        </select>
                     </label>
+                    <ColorField
+                        label="Farbe"
+                        value={room.meta?.floorColor}
+                        fallback={style.floorColor}
+                        swatches={SWATCHES.floor}
+                        onChange={floorColor => s().updateRoom(selection.anchor, { floorColor })}
+                    />
                     <div className="info">Fläche: {room.area.toFixed(2).replace('.', ',')} m²</div>
                     <h3>Raumklima</h3>
                     <StateIdField
@@ -259,6 +282,7 @@ function ObjectProps({ id }: { id: string }) {
                 <button onClick={() => s().rotateSelection(90)} title="R">↺ 90°</button>
                 <button onClick={() => s().rotateSelection(-90)}>↻ 90°</button>
             </div>
+            <ObjectColors id={id} />
             <h3>Größe</h3>
             {(['Breite', 'Höhe', 'Tiefe'] as const).map((label, i) => (
                 <NumberField key={label} label={label} unit="m" value={dims[i]} min={0.01} onChange={v => setDim(i, v)} />
@@ -302,6 +326,83 @@ function BackgroundProps() {
                 <button onClick={() => s().setTool('background')}>Verschieben</button>
             </div>
             <button className="danger" onClick={() => s().updateFloor(floor.id, { background: undefined })}>Vorlage entfernen</button>
+        </>
+    );
+}
+
+/** Colours of the two sides of a wall, labelled with the room on that side (or "außen"). */
+function WallColors({ wallId }: { wallId: string }) {
+    const floor = useEditor(activeFloor);
+    const style = projectStyle(useEditor(s => s.project));
+    const sides = useMemo(() => {
+        const frames = computeWallGeometry(floor).frames;
+        return wallSideRooms(frames, detectRooms(floor))[wallId];
+    }, [floor, wallId]);
+    const w = floor.walls[wallId];
+    if (!w || !sides) return null;
+    const s = useEditor.getState;
+    const label = (room: typeof sides.left) => (room ? `Seite ${room.meta?.name ?? 'Raum'}` : 'Außenseite');
+    const side = (key: 'colorLeft' | 'colorRight', room: typeof sides.left) => (
+        <ColorField
+            label={label(room)}
+            value={w[key]}
+            fallback={room ? style.wallInterior : style.wallExterior}
+            swatches={SWATCHES.wall}
+            onChange={c => s().updateWall(wallId, { [key]: c })}
+        />
+    );
+    return (
+        <>
+            <h3>Farbe</h3>
+            {side('colorLeft', sides.left)}
+            {side('colorRight', sides.right)}
+        </>
+    );
+}
+
+/** Colours of the model's materials, grouped by material name. */
+function ObjectColors({ id }: { id: string }) {
+    const floor = useEditor(activeFloor);
+    const o = floor.objects[id];
+    const [materials, setMaterials] = useState<ModelMaterial[] | null>(null);
+    useEffect(() => {
+        let alive = true;
+        setMaterials(null);
+        void loadAsset(o.assetId).then(proto => alive && setMaterials(proto ? listMaterials(proto) : []));
+        return () => {
+            alive = false;
+        };
+    }, [o.assetId]);
+    if (!materials?.length) return null;
+
+    // materials with the same name (e.g. the four handles of a wardrobe) are coloured together
+    const groups = new Map<string, ModelMaterial[]>();
+    for (const m of materials) groups.set(m.name, [...(groups.get(m.name) ?? []), m]);
+    const set = (list: ModelMaterial[], color: string | undefined) => {
+        const materialColors = { ...(o.materialColors ?? {}) };
+        for (const m of list) {
+            if (color) materialColors[m.index] = color;
+            else delete materialColors[m.index];
+        }
+        useEditor.getState().updateObject(id, { materialColors: Object.keys(materialColors).length ? materialColors : undefined });
+    };
+    return (
+        <>
+            <h3>Farben</h3>
+            {[...groups].map(([name, list]) => (
+                <ColorField
+                    key={name}
+                    label={name}
+                    value={o.materialColors?.[list[0].index]}
+                    fallback={list[0].color}
+                    onChange={c => set(list, c)}
+                />
+            ))}
+            {o.materialColors && (
+                <button className="small" onClick={() => useEditor.getState().updateObject(id, { materialColors: undefined })}>
+                    Alle Farben zurücksetzen
+                </button>
+            )}
         </>
     );
 }

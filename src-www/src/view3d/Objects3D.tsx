@@ -31,7 +31,7 @@ export function useAssetPrototype(id: string | null | undefined): THREE.Object3D
 const SELECT_COLOR = '#3b74e8';
 
 export interface ObjectInstanceProps {
-    obj: Pick<SceneObject, 'x' | 'y' | 'elevation' | 'rotation' | 'scale' | 'behaviors'>;
+    obj: Pick<SceneObject, 'x' | 'y' | 'elevation' | 'rotation' | 'scale' | 'behaviors' | 'materialColors'>;
     asset: AssetMeta;
     selected?: boolean;
     ghost?: boolean;
@@ -43,9 +43,10 @@ export interface ObjectInstanceProps {
 
 export function ObjectInstance({ obj, asset, selected, ghost, interactive, onClick, groupRef }: ObjectInstanceProps) {
     const proto = useAssetPrototype(asset.id);
+    const colorKey = JSON.stringify(obj.materialColors ?? {});
     const instance = useMemo(() => {
         if (!proto) return null;
-        const inst = cloneInstance(proto);
+        const inst = cloneInstance(proto, JSON.parse(colorKey));
         if (ghost) {
             inst.traverse(o => {
                 const m = o as THREE.Mesh;
@@ -60,7 +61,7 @@ export function ObjectInstance({ obj, asset, selected, ghost, interactive, onCli
             });
         }
         return inst;
-    }, [proto, ghost]);
+    }, [proto, ghost, colorKey]);
     useEffect(
         () => () =>
             instance?.traverse(o => {

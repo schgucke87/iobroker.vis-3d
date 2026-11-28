@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import type { Vec2 } from '../model/types';
 import { clampOpening, type WallFrame } from './walls';
 
+/** Material slots of a wall mesh. */
+export const WALL_RIGHT = 0;
+export const WALL_LEFT = 1;
+export const WALL_EDGE = 2;
+
 /**
  * Builds a wall mesh: the wall's side profile (u along the wall, v up) with
  * openings cut out as holes is extruded through the wall thickness. The end
@@ -40,6 +45,14 @@ export function buildWallGeometry(frame: WallFrame, bottom: number): THREE.Buffe
     }
 
     const geo = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false, curveSegments: 1 });
+    // ExtrudeGeometry puts both lids (= the two wall faces) in group 0, first the z = 0 lid (right
+    // side), then the z = t lid (left side); group 1 holds the edges (top, ends, opening reveals).
+    // Split them into material 0 = right face, 1 = left face, 2 = edges.
+    const [lids, edges] = geo.groups;
+    geo.clearGroups();
+    geo.addGroup(lids.start, lids.count / 2, WALL_RIGHT);
+    geo.addGroup(lids.start + lids.count / 2, lids.count / 2, WALL_LEFT);
+    if (edges) geo.addGroup(edges.start, edges.count, WALL_EDGE);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     const [dx, dy] = frame.dir;
     const [nx, ny] = frame.normal;

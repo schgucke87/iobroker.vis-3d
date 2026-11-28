@@ -47,6 +47,9 @@ export interface Wall {
     thickness: number;
     height: number;
     openings: Opening[];
+    /** Colour of the side facing the left normal of a→b (default: interior/exterior colour of the project). */
+    colorLeft?: string;
+    colorRight?: string;
 }
 
 export interface RoomMeta {
@@ -61,6 +64,7 @@ export interface RoomMeta {
     /** ioBroker room enum, e.g. "enum.rooms.living_room". */
     enumId?: string;
     floorColor?: string;
+    floorMaterial?: FloorMaterial;
     /** Temperature datapoint: shown on the room label and in the heat map. */
     temperatureId?: string;
     humidityId?: string;
@@ -163,6 +167,8 @@ export interface SceneObject {
     rotation: number;
     scale: [number, number, number];
     behaviors?: Behavior[];
+    /** Colour per model material (index in the order the materials appear in the model). */
+    materialColors?: Record<string, string>;
 }
 
 export interface Floor {
@@ -179,6 +185,22 @@ export interface Floor {
     background?: BackgroundImage;
 }
 
+export type FloorMaterial = 'plain' | 'wood' | 'tiles' | 'carpet' | 'stone';
+export type GroundMaterial = 'plain' | 'grass' | 'gravel' | 'paving' | 'snow';
+export type SkyMode = 'color' | 'day' | 'sunset' | 'night';
+
+/** Look of the whole project; every field has a default (see projectStyle()). */
+export interface ProjectStyle {
+    wallInterior: string;
+    wallExterior: string;
+    floorColor: string;
+    floorMaterial: FloorMaterial;
+    groundColor: string;
+    groundMaterial: GroundMaterial;
+    sky: SkyMode;
+    skyColor: string;
+}
+
 export interface Project {
     version: 1;
     name: string;
@@ -186,6 +208,7 @@ export interface Project {
     floors: Floor[];
     /** Imported assets used by this project (built-in assets are not listed). */
     assets: Record<string, AssetMeta>;
+    style?: Partial<ProjectStyle>;
 }
 
 /** A wall-graph room detected from closed wall loops. */

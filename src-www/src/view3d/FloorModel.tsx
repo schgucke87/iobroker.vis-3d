@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import type { DetectedRoom, Floor, Opening } from '../model/types';
+import type { DetectedRoom, Floor, Opening, ProjectStyle } from '../model/types';
 import { computeWallGeometry, clampOpening, pointOnWall, type WallFrame } from '../geometry/walls';
-import { detectRooms } from '../geometry/rooms';
+import { detectRooms, wallSideRooms } from '../geometry/rooms';
 import { buildPrism, buildWallGeometry, yawFor } from '../geometry/mesh';
+import { surfaceMaterial } from './textures';
+import { DEFAULT_STYLE } from '../model/style';
 import { useStateValue } from '../iobroker/connect';
 import { formatValue, normalizeValue } from '../iobroker/backend';
 import { contactLevel, temperatureColor } from '../model/behaviors';
@@ -18,6 +20,7 @@ export interface FloorModelProps {
     /** 1 = visible, 0 = hidden. Animated. */
     opacity: number;
     showLabels: boolean;
+    style?: ProjectStyle;
     /** Colour room floors by temperature. */
     heatmap?: boolean;
     selectedWallId?: string;
@@ -45,8 +48,10 @@ export function FloorModel(props: FloorModelProps) {
     const objects = useRef<THREE.Group>(null);
     const current = useRef({ offset, opacity, applied: 1 });
 
+    const style = props.style ?? DEFAULT_STYLE;
     const geometry = useMemo(() => computeWallGeometry(floor), [floor]);
     const rooms = useMemo(() => detectRooms(floor), [floor]);
+    const sides = useMemo(() => wallSideRooms(geometry.frames, rooms), [geometry, rooms]);
 
     const wallGeos = useMemo(
         () => Object.values(geometry.frames).map(fr => ({ id: fr.wall.id, geo: buildWallGeometry(fr, -floor.slab) })),
@@ -74,7 +79,6 @@ export function FloorModel(props: FloorModelProps) {
             wall: std(COLORS.wall),
             wallSelected: std(COLORS.wallSelected),
             floor: std(COLORS.floor, { roughness: 0.8 }),
-            floorHover: std('#f0d9a8', { emissive: '#3a2a00', emissiveIntensity: 0.25 }),
             frame: std(COLORS.frame, { roughness: 0.5 }),
             glass: new THREE.MeshPhysicalMaterial({ color: COLORS.glass, roughness: 0.05, transmission: 0, transparent: true, opacity: 0.35 }),
             leaf: std(COLORS.leaf, { roughness: 0.6 }),
@@ -82,25 +86,44 @@ export function FloorModel(props: FloorModelProps) {
             glassTilted: new THREE.MeshPhysicalMaterial({ color: '#ffcf4a', roughness: 0.2, transparent: true, opacity: 0.6 }),
             frameOpen: std('#ff8a4c', { roughness: 0.5 }),
             shutter: std('#7b818c', { roughness: 0.7 }),
-            roomColors: new Map<string, THREE.MeshStandardMaterial>(),
+            /** Coloured/textured wall and floor materials, created on demand. */
+            cache: new Map<string, THREE.MeshStandardMaterial>(),
         };
         return m;
     }, []);
-    const roomMat = (r: DetectedRoom, i: number, heatColor?: string) => {
-        if (props.hoverRoom === i) return mats.floorHover;
-        const c = heatColor ?? r.meta?.floorColor;
-        if (!c) return mats.floor;
-        let mat = mats.roomColors.get(c);
+    const cached = (key: string, make: () => THREE.MeshStandardMaterial) => {
+        let mat = mats.cache.get(key);
         if (!mat) {
-            mat = new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
-            mats.roomColors.set(c, mat);
+            mat = make();
+            mats.cache.set(key, mat);
         }
         return mat;
+    };
+    const wallMat = (color: string) => cached(`wall|${color}`, () => new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0 }));
+    const roomMat = (r: DetectedRoom, i: number, heatColor?: string) => {
+        // hovering keeps the floor's surface and lights it up a little
+        const hover = props.hoverRoom === i;
+        const glow = hover ? { emissive: new THREE.Color('#5a4200'), emissiveIntensity: 0.35 } : {};
+        if (heatColor) return cached(`heat|${heatColor}|${hover}`, () => new THREE.MeshStandardMaterial({ color: heatColor, roughness: 0.8, ...glow }));
+        const pattern = r.meta?.floorMaterial ?? style.floorMaterial;
+        const color = r.meta?.floorColor ?? style.floorColor;
+        return cached(`floor|${pattern}|${color}|${hover}`, () => surfaceMaterial(pattern, color, 1, { roughness: 0.8, ...glow }));
+    };
+    /** [right face, left face, edges] of a wall: its own colours, else the interior/exterior colour. */
+    const wallMats = (id: string): THREE.Material[] => {
+        if (id === props.selectedWallId) return [mats.wallSelected, mats.wallSelected, mats.wallSelected];
+        const w = floor.walls[id];
+        const side = sides[id];
+        const auto = (room: DetectedRoom | null | undefined) => (room ? style.wallInterior : style.wallExterior);
+        return [wallMat(w?.colorRight ?? auto(side?.right)), wallMat(w?.colorLeft ?? auto(side?.left)), wallMat(style.wallInterior)];
     };
     useEffect(
         () => () => {
             Object.values(mats).forEach(m => (m instanceof THREE.Material ? m.dispose() : undefined));
-            mats.roomColors.forEach(m => m.dispose());
+            mats.cache.forEach(m => {
+                m.map?.dispose();
+                m.dispose();
+            });
         },
         [mats],
     );
@@ -117,7 +140,7 @@ export function FloorModel(props: FloorModelProps) {
         g.position.y = elevation + c.offset;
         g.visible = c.opacity > 0.01;
         const all: THREE.Material[] = [
-            mats.wall, mats.wallSelected, mats.floor, mats.floorHover, mats.frame, mats.leaf, mats.frameOpen, mats.shutter, ...mats.roomColors.values(),
+            mats.wall, mats.wallSelected, mats.floor, mats.frame, mats.leaf, mats.frameOpen, mats.shutter, ...mats.cache.values(),
         ];
         for (const m of all) {
             const transparent = c.opacity < 0.999;
@@ -160,14 +183,14 @@ export function FloorModel(props: FloorModelProps) {
                 <mesh
                     key={w.id}
                     geometry={w.geo}
-                    material={w.id === props.selectedWallId ? mats.wallSelected : mats.wall}
+                    material={wallMats(w.id)}
                     castShadow
                     receiveShadow
                     onClick={props.onWallClick ? e => props.onWallClick!(w.id, e) : undefined}
                 />
             ))}
             {hubGeos.map((g, i) => (
-                <mesh key={i} geometry={g} material={mats.wall} castShadow receiveShadow />
+                <mesh key={i} geometry={g} material={wallMat(style.wallInterior)} castShadow receiveShadow />
             ))}
             {rooms.map((r, i) => (
                 <RoomFloor

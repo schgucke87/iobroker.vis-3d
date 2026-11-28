@@ -1,4 +1,5 @@
 import type { DetectedRoom, Floor, Vec2 } from '../model/types';
+import type { WallFrame } from './walls';
 import { angleOf, interiorPoint, pointInPolygon, signedArea, sub } from './vec';
 
 const MIN_ROOM_AREA = 0.25; // m²
@@ -109,4 +110,27 @@ function removeSpikes(poly: Vec2[]): Vec2[] {
         }
     }
     return pts;
+}
+
+/**
+ * The room on each side of every wall (null = outside). Probes a point just
+ * in front of each face, at a few places along the wall so an opening in the
+ * middle doesn't matter.
+ */
+export function wallSideRooms(frames: Record<string, WallFrame>, rooms: DetectedRoom[]): Record<string, { left: DetectedRoom | null; right: DetectedRoom | null }> {
+    const result: Record<string, { left: DetectedRoom | null; right: DetectedRoom | null }> = {};
+    for (const fr of Object.values(frames)) {
+        const probe = (side: 1 | -1): DetectedRoom | null => {
+            for (const k of [0.5, 0.25, 0.75]) {
+                const u = fr.length * k;
+                const d = fr.wall.thickness / 2 + 0.05;
+                const p: Vec2 = [fr.start[0] + fr.dir[0] * u + fr.normal[0] * d * side, fr.start[1] + fr.dir[1] * u + fr.normal[1] * d * side];
+                const hit = rooms.filter(r => pointInPolygon(p, r.polygon)).sort((a, b) => a.area - b.area)[0];
+                if (hit) return hit;
+            }
+            return null;
+        };
+        result[fr.wall.id] = { left: probe(1), right: probe(-1) };
+    }
+    return result;
 }

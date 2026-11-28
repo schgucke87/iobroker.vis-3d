@@ -375,3 +375,15 @@ button.small { padding: 2px 8px; font-size: 12px; }
 .suggestions footer { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
 .suggestions footer .muted { flex: 1; font-size: 12px; }
 @media (max-width: 900px) { .suggestion { grid-template-columns: 20px 24px 1fr; } .suggestion .how { grid-column: 3; } }
+
+/* ---------- colours & style ---------- */
+.color-field { display: flex; flex-direction: column; gap: 4px; }
+.color-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.color-head > span:first-child { color: var(--muted); }
+.color-controls { display: flex; align-items: center; gap: 4px; }
+.color-controls input[type='color'] { width: 40px; height: 24px; padding: 1px; border-radius: 5px; }
+button.link { border: none; background: none; color: var(--accent); padding: 0 4px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.swatch { width: 18px; height: 18px; padding: 0; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.15); }
+.swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tabs button { font-size: 12px; }

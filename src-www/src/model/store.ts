@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { AssetMeta, Floor, Opening, Project, RoomMeta, SceneObject, Vec2, Wall } from './types';
+import type { AssetMeta, Floor, Opening, Project, ProjectStyle, RoomMeta, SceneObject, Vec2, Wall } from './types';
 import * as ops from './ops';
 import { detectRooms } from '../geometry/rooms';
 import { pointInPolygon } from '../geometry/vec';
@@ -62,7 +62,9 @@ export interface EditorState {
     /** Runs a mutation on a copy of the active floor and commits it. */
     editFloor<T>(fn: (floor: Floor) => T): T;
     addWall(from: ops.AttachTarget, to: ops.AttachTarget): string;
-    updateWall(id: string, patch: Partial<Pick<Wall, 'thickness' | 'height'>>): void;
+    updateWall(id: string, patch: Partial<Pick<Wall, 'thickness' | 'height' | 'colorLeft' | 'colorRight'>>): void;
+    /** Changes the project style; `undefined` values reset a field to its default. */
+    updateStyle(patch: Partial<Record<keyof ProjectStyle, string | undefined>>): void;
     deleteSelection(): void;
     addOpening(wallId: string, type: Opening['type'], offset: number): void;
     updateOpening(wallId: string, id: string, patch: Partial<Opening>): void;
@@ -205,6 +207,15 @@ export const useEditor = create<EditorState>()(
                         ops.addWall(f, from, to, { thickness: s.settings.wallThickness, height: floor.height }),
                     );
                 },
+                updateStyle: patch =>
+                    set(s => {
+                        const style: Record<string, unknown> = { ...s.project.style };
+                        for (const [k, v] of Object.entries(patch)) {
+                            if (v === undefined) delete style[k];
+                            else style[k] = v;
+                        }
+                        return { project: { ...s.project, style: style as Partial<ProjectStyle> } };
+                    }),
                 updateWall: (id, patch) =>
                     get().editFloor(f => {
                         if (f.walls[id]) Object.assign(f.walls[id], patch);

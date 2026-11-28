@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { findAsset, floorElevations, normalizeAngle, useEditor } from '../model/store';
 import type { DetectedRoom, Floor, Project, Vec2 } from '../model/types';
 import { FloorModel } from './FloorModel';
+import { Environment } from './Environment';
+import { projectStyle } from '../model/style';
 import { ObjectInstance } from './Objects3D';
 import { computePlacement } from '../geometry/placement';
 
@@ -65,6 +67,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     const gizmo = useEditor(s => s.gizmo);
     const settings = useEditor(s => s.settings);
     const heatmap = useEditor(s => s.heatmap);
+    const style = useMemo(() => projectStyle(project), [project]);
     const [selectedGroup, setSelectedGroup] = useState<THREE.Group | null>(null);
     const [placePoint, setPlacePoint] = useState<Vec2 | null>(null);
 
@@ -146,23 +149,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
 
     return (
         <Canvas shadows camera={{ position: [18, 16, 22], fov: 40, near: 0.1, far: 500 }} onPointerMissed={() => setHover(null)}>
-            <color attach="background" args={['#e9edf2']} />
-            <hemisphereLight args={['#ffffff', '#b8b0a0', 1.4]} />
-            <directionalLight
-                position={[15, 25, 10]}
-                intensity={1.6}
-                castShadow
-                shadow-mapSize={[2048, 2048]}
-                shadow-camera-left={-25}
-                shadow-camera-right={25}
-                shadow-camera-top={25}
-                shadow-camera-bottom={-25}
-                shadow-bias={-0.0005}
-            />
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.25, 0]} receiveShadow>
-                <circleGeometry args={[80, 64]} />
-                <meshStandardMaterial color="#d6dccf" roughness={1} />
-            </mesh>
+            <Environment style={style} />
 
             {project.floors.map((f, i) => {
                 const hidden = focusIndex >= 0 && i > focusIndex;
@@ -175,6 +162,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                         offset={offsets[i]}
                         opacity={hidden ? 0 : 1}
                         showLabels={isFocus}
+                        style={style}
                         heatmap={heatmap}
                         selectedWallId={isFocus || focusIndex < 0 ? selectedWallId : undefined}
                         hoverRoom={hover?.floor === f.id && !placing ? hover.room : null}

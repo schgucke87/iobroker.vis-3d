@@ -5,6 +5,7 @@ import { Scene3D } from './view3d/Scene3D';
 import { FloorPanel, PropertiesPanel } from './ui/Panels';
 import { LibraryPanel } from './ui/Library';
 import { SuggestionsDialog } from './ui/Suggestions';
+import { StylePanel } from './ui/Style';
 import { exportProject, importProjectFile } from './storage/local';
 import { demoProject } from './model/demo';
 import { useConnection } from './iobroker/connect';
@@ -155,7 +156,7 @@ function StatusBadge() {
 }
 
 function LeftTabs() {
-    const [tab, setTab] = useState<'floors' | 'library'>('floors');
+    const [tab, setTab] = useState<'floors' | 'library' | 'style'>('floors');
     const tool = useEditor(s => s.tool);
     useEffect(() => {
         if (tool === 'place') setTab('library');
@@ -169,8 +170,11 @@ function LeftTabs() {
                 <button className={tab === 'library' ? 'active' : ''} onClick={() => setTab('library')}>
                     Bibliothek
                 </button>
+                <button className={tab === 'style' ? 'active' : ''} onClick={() => setTab('style')}>
+                    Gestaltung
+                </button>
             </div>
-            {tab === 'floors' ? <FloorPanel /> : <LibraryPanel />}
+            {tab === 'floors' ? <FloorPanel /> : tab === 'library' ? <LibraryPanel /> : <StylePanel />}
         </>
     );
 }

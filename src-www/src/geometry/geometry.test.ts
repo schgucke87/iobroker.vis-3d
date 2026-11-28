@@ -178,3 +178,43 @@ describe('placement', () => {
         expect(guessUnit(600, 'stl')).toBe('mm');
     });
 });
+
+describe('wall sides', () => {
+    it('knows which side of a wall faces which room or the outside', async () => {
+        const { wallSideRooms } = await import('./rooms');
+        const f = floor();
+        rect(f, 4, 3);
+        ops.addWall(f, P([2, 0]), P([2, 3]), D);
+        f.rooms.a = { id: 'a', name: 'West', anchor: [1, 1.5] };
+        f.rooms.b = { id: 'b', name: 'Ost', anchor: [3, 1.5] };
+        const frames = computeWallGeometry(f).frames;
+        const sides = wallSideRooms(frames, detectRooms(f));
+        const inner = Object.values(frames).find(fr => fr.start[0] === 2 && fr.end[0] === 2)!;
+        const names = [sides[inner.wall.id].left?.meta?.name, sides[inner.wall.id].right?.meta?.name].sort();
+        expect(names).toEqual(['Ost', 'West']);
+        // the outer walls have the outside on one side
+        const outer = Object.values(frames).filter(fr => fr !== inner);
+        for (const fr of outer) {
+            const s = sides[fr.wall.id];
+            expect([s.left, s.right].filter(x => x === null).length).toBe(1);
+        }
+    });
+
+    it('splits the wall mesh into right face, left face and edges', async () => {
+        const { buildWallGeometry, WALL_LEFT, WALL_RIGHT, WALL_EDGE } = await import('./mesh');
+        const f = floor();
+        ops.addWall(f, P([0, 0]), P([4, 0]), D);
+        const fr = Object.values(computeWallGeometry(f).frames)[0];
+        const geo = buildWallGeometry(fr, -0.2);
+        expect(geo.groups.map(g => g.materialIndex)).toEqual([WALL_RIGHT, WALL_LEFT, WALL_EDGE]);
+        // wall (0,0)->(4,0): left normal points to +y (world +z); the left face lies at z = +0.1
+        const pos = geo.attributes.position;
+        const zOf = (g: { start: number; count: number }) => {
+            const zs = new Set<number>();
+            for (let i = g.start; i < g.start + g.count; i++) zs.add(Math.round(pos.getZ(i) * 1000) / 1000);
+            return [...zs];
+        };
+        expect(zOf(geo.groups[0])).toEqual([-0.1]);
+        expect(zOf(geo.groups[1])).toEqual([0.1]);
+    });
+});

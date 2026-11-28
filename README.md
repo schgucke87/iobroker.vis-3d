@@ -78,6 +78,14 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
   Alles mit einem Schritt rückgängig zu machen.
 - Projekt und Modelle im ioBroker-Dateisystem (`vis-3d.0/main/`)
 
+**Gestaltung**
+- Himmel: einfarbig, Tag, Abendrot oder Nacht (nachts gedimmte Grundbeleuchtung, Sterne – eingeschaltete Lampen leuchten deutlich)
+- Grundstück: Rasen, Kies, Pflaster, Schnee oder einfarbig, in beliebiger Farbe
+- Wände: Standardfarbe innen und außen (Fassade) – welche Wandseite außen liegt, wird automatisch erkannt;
+  jede Wandseite lässt sich einzeln färben (im Panel nach dem angrenzenden Raum benannt)
+- Böden: Parkett, Fliesen, Naturstein, Teppich oder einfarbig – als Standard und pro Raum, in beliebiger Farbe
+- Objekte: Farbe pro Material des Modells (z. B. Bezug, Kissen und Füße eines Sofas), auch bei importierten Modellen
+
 **3D-Ansicht**
 - Gesamtes Gebäude → Stockwerk → Raum: Kamera fliegt jeweils weich auf das Ziel, obere Stockwerke werden ausgeblendet
 - Explosionsansicht (Stockwerke auseinandergezogen)
