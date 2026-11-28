@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import type { DetectedRoom, Floor, Opening, ProjectStyle } from '../model/types';
+import type { DetectedRoom, Floor, Opening, ProjectStyle, Vec2 } from '../model/types';
 import { computeWallGeometry, clampOpening, pointOnWall, type WallFrame } from '../geometry/walls';
 import { detectRooms, wallSideRooms } from '../geometry/rooms';
 import { buildPrism, buildWallGeometry, yawFor } from '../geometry/mesh';
+import { subtractConvex } from '../geometry/clip';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { applySnowOpacity, snowMaterial, surfaceMaterial } from './textures';
 import { roofFrame, roofHeightAt, wallTopProfile } from '../geometry/roof';
 import { DEFAULT_STYLE } from '../model/style';
@@ -24,6 +26,8 @@ export interface FloorModelProps {
     style?: ProjectStyle;
     /** Colour room floors by temperature. */
     heatmap?: boolean;
+    /** Openings in the floor slab (stairs from the storey below), convex plan polygons. */
+    holes?: Vec2[][];
     /** Opacity of the lying snow on the areas of a garden floor (0 = none). */
     snow?: number;
     selectedWallId?: string;
@@ -84,7 +88,20 @@ export function FloorModel(props: FloorModelProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [geometry, floor.slab, roof, sides],
     );
-    const roomGeos = useMemo(() => rooms.map(r => buildPrism(r.polygon, -floor.slab, 0)), [rooms, floor.slab]);
+    const holesKey = JSON.stringify(props.holes ?? []);
+    const roomGeos = useMemo(() => {
+        const holes: Vec2[][] = JSON.parse(holesKey);
+        return rooms.map(r => {
+            if (!holes.length) return buildPrism(r.polygon, -floor.slab, 0);
+            // cut the stair openings out of the floor: the room's polygon in pieces
+            let pieces = [r.polygon];
+            for (const h of holes) pieces = pieces.flatMap(pc => subtractConvex(pc, h));
+            const geos = pieces.map(pc => buildPrism(pc, -floor.slab, 0).toNonIndexed());
+            const merged = geos.length ? mergeGeometries(geos, false) : new THREE.BufferGeometry();
+            geos.forEach(g => g.dispose());
+            return merged ?? new THREE.BufferGeometry();
+        });
+    }, [rooms, floor.slab, holesKey]);
     useEffect(
         () => () => {
             wallGeos.forEach(w => w.geo.dispose());

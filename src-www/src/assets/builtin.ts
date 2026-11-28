@@ -8,6 +8,7 @@ import type { AssetMeta } from '../model/types';
 
 import { box, cyl, legs, mat, type Factory } from './primitives';
 import { MORE, MORE_META } from './builtinMore';
+import { buildStair, isStairId, parseStairId } from '../geometry/stairs';
 
 const F: Record<string, Factory> = {
     sofa: () => {
@@ -167,11 +168,16 @@ const META: Omit<AssetMeta, 'size'>[] = [
     { id: 'builtin:plant', name: 'Zimmerpflanze', category: 'plant', mount: 'floor' },
 ];
 
+/** Generated in code (no file): the built-in library and parametric stairs. */
 export function isBuiltin(id: string) {
-    return id.startsWith('builtin:');
+    return id.startsWith('builtin:') || isStairId(id);
 }
 
 export function createBuiltin(id: string): THREE.Group | null {
+    if (isStairId(id)) {
+        const p = parseStairId(id);
+        return p ? buildStair(p) : null;
+    }
     const key = id.slice('builtin:'.length);
     const f = F[key] ?? MORE[key];
     return f ? f() : null;

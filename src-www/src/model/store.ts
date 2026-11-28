@@ -1,3 +1,4 @@
+import { isStairId, stairMeta } from '../geometry/stairs';
 import { create } from 'zustand';
 import { temporal } from 'zundo';
 import type { AssetMeta, Floor, Opening, Project, ProjectStyle, RoofFeature, RoomMeta, SceneObject, Vec2, Wall } from './types';
@@ -126,6 +127,7 @@ export function allAssets(p: Project): AssetMeta[] {
 }
 
 export function findAsset(p: Project, id: string): AssetMeta | undefined {
+    if (isStairId(id)) return stairMeta(id);
     return p.assets[id] ?? builtinAssets().find(a => a.id === id);
 }
 

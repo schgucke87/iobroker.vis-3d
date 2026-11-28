@@ -564,6 +564,27 @@ const RAW: Record<string, Factory> = {
         g.add(emitter(shade));
         return g;
     },
+    spot1: () => ceilingSpots(1),
+    spot2: () => ceilingSpots(2),
+    spot3: () => ceilingSpots(3),
+    spot3Round: () => ceilingSpots(3, true),
+    recessedSpot: () => {
+        const g = G();
+        // square trim flush with the ceiling, a tilted (swivelling) spot inside
+        box(g, mat('#f0f0f0', {}, 'Rahmen'), 0.09, 0.012, 0.09, 0, 0.02);
+        const head = new THREE.Group();
+        // the spot sits inside the ceiling, only the trim is flush with it
+        head.position.set(0, 0.0, 0);
+        head.rotation.x = 0.35;
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 20), mat('#d9d9d9', { metalness: 0.4 }, 'Spot'));
+        body.position.y = 0.0;
+        head.add(body);
+        const light = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.004, 20), mat('#fffaf0', {}, 'Licht'));
+        light.position.y = -0.016;
+        head.add(emitter(light));
+        g.add(head);
+        return g;
+    },
     downlight: () => {
         const g = G();
         cyl(g, mat('#e9e9e9', {}, 'Ring'), 0.05, 0.05, 0.015, 0, 0.005, 0, 24);
@@ -630,6 +651,36 @@ function grounded(f: Factory): Factory {
     };
 }
 
+/**
+ * Ceiling spot light with 1–3 swivelling heads: a round canopy for one head,
+ * a bar (or a round plate with `round`) for more; every head points a little outwards.
+ */
+function ceilingSpots(n: number, round = false): THREE.Group {
+    const g = G();
+    const finish = mat('#2f3135', { metalness: 0.5, roughness: 0.35 }, 'Gehäuse');
+    const top = 0.26;
+    if (n === 1 || round) cyl(g, finish, round ? 0.14 : 0.05, round ? 0.14 : 0.05, 0.025, 0, top - 0.025, 0, 32);
+    else box(g, finish, 0.2 * n + 0.06, 0.025, 0.06, 0, top - 0.025, 0);
+    for (let i = 0; i < n; i++) {
+        const x = round ? Math.cos((i / n) * Math.PI * 2) * 0.08 : (i - (n - 1) / 2) * 0.2;
+        const z = round ? Math.sin((i / n) * Math.PI * 2) * 0.08 : 0;
+        cyl(g, finish, 0.008, 0.008, 0.08, x, top - 0.1, z, 8);
+        const head = new THREE.Group();
+        head.position.set(x, top - 0.12, z);
+        // tilt every head a bit outwards (or alternately for a bar)
+        const out = round ? Math.atan2(z, x) : 0;
+        head.rotation.set(round ? 0 : 0.35 * (i % 2 ? -1 : 1), -out, round ? 0.35 : 0);
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.11, 20), finish);
+        body.castShadow = true;
+        head.add(body);
+        const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.006, 20), mat('#fff6e0', {}, 'Licht'));
+        lens.position.y = -0.056;
+        head.add(emitter(lens));
+        g.add(head);
+    }
+    return g;
+}
+
 export const MORE: Record<string, Factory> = Object.fromEntries(Object.entries(RAW).map(([k, f]) => [k, grounded(f)]));
 
 export const MORE_META: Omit<AssetMeta, 'size'>[] = [
@@ -686,6 +737,11 @@ export const MORE_META: Omit<AssetMeta, 'size'>[] = [
     // lights
     { id: 'builtin:pendantLamp', name: 'Pendelleuchte', category: 'lighting', mount: 'ceiling' },
     { id: 'builtin:chandelier', name: 'Kronleuchter', category: 'lighting', mount: 'ceiling' },
+    { id: 'builtin:spot1', name: 'Deckenspot 1-flammig', category: 'lighting', mount: 'ceiling' },
+    { id: 'builtin:spot2', name: 'Deckenspot 2-flammig', category: 'lighting', mount: 'ceiling' },
+    { id: 'builtin:spot3', name: 'Deckenspot 3-flammig', category: 'lighting', mount: 'ceiling' },
+    { id: 'builtin:spot3Round', name: 'Deckenspot 3-flammig (rund)', category: 'lighting', mount: 'ceiling' },
+    { id: 'builtin:recessedSpot', name: 'Einbauspot (schwenkbar)', category: 'lighting', mount: 'ceiling' },
     { id: 'builtin:downlight', name: 'Einbaustrahler', category: 'lighting', mount: 'ceiling' },
     { id: 'builtin:tableLamp', name: 'Tischlampe', category: 'lighting', mount: 'floor' },
     { id: 'builtin:arcLamp', name: 'Bogenleuchte', category: 'lighting', mount: 'floor' },

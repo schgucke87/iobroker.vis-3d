@@ -1,8 +1,12 @@
 {
   "common": {
     "name": "vis-3d",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "news": {
+      "0.4.0": {
+        "en": "Stairs between storeys (straight, L, U, spiral) with slab opening, loft ladder, 1/2/3-head ceiling spots and recessed spot, proportional scaling",
+        "de": "Treppen zwischen Stockwerken (gerade, L, U, Wendeltreppe) mit Deckenöffnung, Dachbodentreppe, Deckenspots 1-/2-/3-flammig und Einbauspot, proportionales Skalieren"
+      },
       "0.3.0": {
         "en": "Double windows, double doors, opening direction, dark mode, many new objects (plants, garden, furniture, lights)",
         "de": "Doppelfenster, zweiflügelige Türen, Öffnungsrichtung, Dark Mode, viele neue Objekte (Pflanzen, Garten, Möbel, Leuchten)"

@@ -12,6 +12,7 @@ import { pointInPolygon } from '../geometry/vec';
 import { computeWallGeometry } from '../geometry/walls';
 import { readImageFile } from '../storage/local';
 import type { FloorMaterial, GroundMaterial, Opening, Roof, RoofType } from '../model/types';
+import { defaultStair, defaultSteps, parseStairId, RAILINGS, STAIR_TYPES, stairAssetId, isStairId, type Railing, type StairParams, type StairType } from '../geometry/stairs';
 import { DEFAULT_ROOF, ROOF_TYPES, roofFrame, roofTop } from '../geometry/roof';
 
 function NumberField(props: { label: string; value: number; step?: number; min?: number; unit?: string; onChange: (v: number) => void }) {
@@ -291,6 +292,7 @@ export function PropertiesPanel() {
                         Stockwerk löschen
                     </button>
 
+                    {!outdoor && <StairAdd />}
                     {!outdoor && <RoofProps />}
 
                     <h3>Grundriss-Vorlage</h3>
@@ -334,12 +336,24 @@ function ObjectProps({ id }: { id: string }) {
     const up = (patch: Parameters<ReturnType<typeof s>['updateObject']>[1]) => s().updateObject(id, patch);
     const deg = Math.round((o.rotation * 180) / Math.PI);
     const dims = asset ? asset.size.map((v, i) => v * o.scale[i]) : [0, 0, 0];
+    const stair = isStairId(o.assetId);
+    const [proportional, setProportional] = useState(true);
+    /** the common factor when all axes are scaled alike (else the mean) */
+    const uniform = (o.scale[0] + o.scale[1] + o.scale[2]) / 3;
     const setDim = (axis: number, value: number) => {
         if (!asset || !(value > 0)) return;
         const scale = [...o.scale] as [number, number, number];
+        if (proportional) {
+            // keep the proportions: every axis changes by the same factor
+            const f = value / asset.size[axis] / o.scale[axis];
+            up({ scale: scale.map(v => v * f) as [number, number, number] });
+            return;
+        }
         scale[axis] = value / asset.size[axis];
         up({ scale });
     };
+    const scaleBy = (f: number) => up({ scale: o.scale.map(v => v * f) as [number, number, number] });
+    const setUniform = (target: number) => scaleBy(target / uniform);
     return (
         <>
             <h3>Objekt</h3>
@@ -358,16 +372,36 @@ function ObjectProps({ id }: { id: string }) {
                 <button onClick={() => s().rotateSelection(90)} title="R">↺ 90°</button>
                 <button onClick={() => s().rotateSelection(-90)}>↻ 90°</button>
             </div>
+            {stair && <StairProps id={id} />}
             <ObjectColors id={id} />
-            <h3>Größe</h3>
-            {(['Breite', 'Höhe', 'Tiefe'] as const).map((label, i) => (
-                <NumberField key={label} label={label} unit="m" value={dims[i]} min={0.01} onChange={v => setDim(i, v)} />
-            ))}
-            <button disabled={o.scale.every(v => v === 1)} onClick={() => up({ scale: [1, 1, 1] })}>
-                Originalgröße
-            </button>
-            <h3>Verhalten (ioBroker)</h3>
-            <BehaviorList behaviors={o.behaviors ?? []} onChange={behaviors => up({ behaviors })} />
+            {!stair && (
+                <>
+                    <h3>Größe</h3>
+                    <label className="field check">
+                        <input type="checkbox" checked={proportional} onChange={e => setProportional(e.target.checked)} />
+                        <span>🔗 Proportional (Seitenverhältnis beibehalten)</span>
+                    </label>
+                    {(['Breite', 'Höhe', 'Tiefe'] as const).map((label, i) => (
+                        <NumberField key={label} label={label} unit="m" value={dims[i]} min={0.01} onChange={v => setDim(i, v)} />
+                    ))}
+                    {proportional && (
+                        <NumberField label="Größe" unit="%" step={5} value={Math.round(uniform * 100)} min={1} onChange={v => v > 0 && setUniform(v / 100)} />
+                    )}
+                    <div className="row">
+                        {[0.5, 0.75, 1.25, 1.5].map(f => (
+                            <button key={f} onClick={() => scaleBy(f)} title="Alle Maße gleichmäßig">
+                                {f < 1 ? '−' : '+'}
+                                {Math.round(Math.abs(f - 1) * 100)} %
+                            </button>
+                        ))}
+                    </div>
+                    <button disabled={o.scale.every(v => v === 1)} onClick={() => up({ scale: [1, 1, 1] })}>
+                        Originalgröße
+                    </button>
+                    <h3>Verhalten (ioBroker)</h3>
+                    <BehaviorList behaviors={o.behaviors ?? []} onChange={behaviors => up({ behaviors })} />
+                </>
+            )}
             <h3>3D-Gizmo</h3>
             <div className="row">
                 <button className={gizmo === 'translate' ? 'active' : ''} onClick={() => s().setGizmo('translate')}>Verschieben</button>
@@ -527,6 +561,117 @@ const OUTDOOR_MATERIALS: Record<string, string> = {
     grass: 'Rasen',
     plain: 'Einfarbig',
 };
+
+/** Storey a stair from this floor leads to: the next one up (gardens do not count). */
+function storeyAbove(project: ReturnType<typeof useEditor.getState>['project'], floorId: string) {
+    const el = floorElevations(project);
+    const i = project.floors.findIndex(f => f.id === floorId);
+    let best = -1;
+    project.floors.forEach((f, k) => {
+        if (k === i || f.kind === 'outdoor' || el[k] <= el[i] + 0.5) return;
+        if (best < 0 || el[k] < el[best]) best = k;
+    });
+    return best >= 0 ? { floor: project.floors[best], height: el[best] - el[i] } : null;
+}
+
+/** Adds a stair (or loft ladder) to the active storey, leading up to the next storey. */
+function StairAdd() {
+    const project = useEditor(s => s.project);
+    const floor = useEditor(activeFloor);
+    const s = useEditor.getState;
+    const above = storeyAbove(project, floor.id);
+    const add = (type: StairType) => {
+        const height = above?.height ?? floor.height + floor.slab;
+        const xs = Object.values(floor.nodes).map(n => n.x);
+        const ys = Object.values(floor.nodes).map(n => n.y);
+        const cx = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : 0;
+        const cy = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0;
+        const id = s().addObject({ assetId: stairAssetId(defaultStair(type, height)), x: cx, y: cy, elevation: 0, rotation: 0, scale: [1, 1, 1] });
+        s().select({ kind: 'object', id });
+    };
+    if (floor.kind === 'outdoor') return null;
+    return (
+        <>
+            <h3>Treppe</h3>
+            <div className="row">
+                <button onClick={() => add('straight')} disabled={!above} title={above ? `Treppe ins ${above.floor.name}` : 'Kein Stockwerk darüber'}>
+                    + Treppe
+                </button>
+                <button onClick={() => add('loft')} disabled={!above} title={above ? `Bodentreppe ins ${above.floor.name}` : 'Kein Stockwerk darüber'}>
+                    + Dachbodentreppe
+                </button>
+            </div>
+            <div className="hint-small">
+                {above
+                    ? `Führt ins ${above.floor.name}; dort entsteht automatisch die Deckenöffnung. Art, Stufen und Maße in den Eigenschaften der Treppe.`
+                    : 'Zuerst ein Stockwerk oder einen Dachboden darüber anlegen.'}
+            </div>
+        </>
+    );
+}
+
+/** Parameters of a selected stair. */
+function StairProps({ id }: { id: string }) {
+    const project = useEditor(st => st.project);
+    const floor = useEditor(activeFloor);
+    const s = useEditor.getState;
+    const o = floor.objects[id];
+    const p = parseStairId(o.assetId)!;
+    const set = (patch: Partial<StairParams>) => s().updateObject(id, { assetId: stairAssetId({ ...p, ...patch }) });
+    const above = storeyAbove(project, floor.id);
+    const rise = p.height / p.steps;
+    const cm = (m: number) => `${(m * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} cm`;
+    const pace = 2 * rise + p.going;
+    return (
+        <>
+            <h3>{p.type === 'loft' ? 'Dachbodentreppe' : 'Treppe'}</h3>
+            <label className="field">
+                <span>Art</span>
+                <select
+                    value={p.type}
+                    onChange={e => {
+                        const type = e.target.value as StairType;
+                        const d = defaultStair(type, p.height);
+                        set({ type, width: d.width, going: d.going, steps: d.steps, railing: type === 'loft' ? 'none' : p.railing });
+                    }}
+                >
+                    {(Object.keys(STAIR_TYPES) as StairType[]).map(t => (
+                        <option key={t} value={t}>
+                            {STAIR_TYPES[t]}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <NumberField label="Höhe (Geschoss)" unit="m" value={p.height} min={0.5} onChange={v => set({ height: Math.max(0.5, v) })} />
+            {above && Math.abs(above.height - p.height) > 0.005 && (
+                <button onClick={() => set({ height: above.height, steps: defaultSteps(above.height, p.type) })}>An Geschosshöhe anpassen ({above.height.toFixed(2).replace('.', ',')} m)</button>
+            )}
+            <NumberField label="Steigungen" value={p.steps} min={3} onChange={v => set({ steps: Math.max(3, Math.min(40, Math.round(v))) })} />
+            <NumberField label={p.type === 'spiral' ? 'Stufenlänge' : 'Laufbreite'} unit="m" value={p.width} min={0.4} onChange={v => set({ width: Math.max(0.4, v) })} />
+            {p.type !== 'spiral' && p.type !== 'loft' && (
+                <NumberField label="Auftritt" unit="m" value={p.going} min={0.15} onChange={v => set({ going: Math.max(0.15, Math.min(0.4, v)) })} />
+            )}
+            {p.type !== 'loft' && (
+                <label className="field">
+                    <span>Geländer</span>
+                    <select value={p.railing} onChange={e => set({ railing: e.target.value as Railing })}>
+                        {(Object.keys(RAILINGS) as Railing[]).map(r => (
+                            <option key={r} value={r}>
+                                {RAILINGS[r]}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            )}
+            <div className="hint-small">
+                Steigung {cm(rise)}
+                {p.type !== 'loft' && p.type !== 'spiral' && ` · Auftritt ${cm(p.going)} · Schrittmaß ${cm(pace)}`}
+                {p.type !== 'loft' && p.type !== 'spiral' && (pace < 0.59 || pace > 0.65) && ' – bequem sind 59–65 cm (2 Steigungen + 1 Auftritt)'}
+                {p.type !== 'loft' && rise > 0.21 && ' – die Steigung ist sehr steil'}
+            </div>
+        </>
+    );
+}
 
 const ROOF_COLORS = ['#8e4636', '#a8553a', '#5c3b30', '#3f4247', '#5f6670', '#7d8a99', '#4f6b4a'];
 

@@ -9,6 +9,7 @@ import { Roof3D } from './Roof3D';
 import { roofFrame, roofTop } from '../geometry/roof';
 import { Environment } from './Environment';
 import { useSnowCover } from './useSnowCover';
+import { stairOpenings } from '../model/stairOpenings';
 import { snowOpacity } from './textures';
 import { projectStyle } from '../model/style';
 import { ObjectInstance } from './Objects3D';
@@ -89,6 +90,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
     const [hover, setHover] = useState<{ floor: string; room: number } | null>(null);
 
     const elevations = useMemo(() => floorElevations(project), [project]);
+    const openings = useMemo(() => stairOpenings(project, elevations), [project, elevations]);
     const focusIndex = project.floors.findIndex(f => f.id === focusFloorId);
     // explosion: storeys move apart in their stacking order; the garden stays on the ground
     const storeyRank = (() => {
@@ -234,6 +236,7 @@ export function Scene3D({ editable }: { editable: boolean }) {
                         style={style}
                         heatmap={heatmap}
                         snow={snow}
+                        holes={openings[i]}
                         selectedWallId={isFocus || focusIndex < 0 ? selectedWallId : undefined}
                         hoverRoom={hover?.floor === f.id && !placing ? hover.room : null}
                         onFloorClick={

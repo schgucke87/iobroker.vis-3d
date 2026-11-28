@@ -1,7 +1,9 @@
+import { isStairId, stairTreadOutlines } from '../geometry/stairs';
+import { stairOpenings } from '../model/stairOpenings';
 import { applyProposals, discardProposals, toggleProposal, useWallProposals, type WallProposal } from './wallProposals';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DetectedRoom, Floor, Opening, Vec2 } from '../model/types';
-import { activeFloor, findAsset, useEditor } from '../model/store';
+import type { DetectedRoom, Floor, Opening, SceneObject, Vec2 } from '../model/types';
+import { activeFloor, findAsset, floorElevations, useEditor } from '../model/store';
 import { computePlacement, objectAxes, objectFootprint } from '../geometry/placement';
 import { roofCreases, roofFrame, roofOutline } from '../geometry/roof';
 import { featureFootprint } from '../geometry/roofFeatures';
@@ -192,6 +194,8 @@ export function PlanEditor() {
         }
         return best;
     };
+    const floorIndex = project.floors.findIndex(f => f.id === floor.id);
+    const openingsHere = useMemo(() => stairOpenings(project, floorElevations(project))[floorIndex] ?? [], [project, floorIndex]);
     const objectsDrawn = useMemo(
         () =>
             Object.values(floor.objects)
@@ -621,6 +625,18 @@ export function PlanEditor() {
                     </g>
                 ))}
 
+                {openingsHere.map((h, i) => (
+                    <g key={`hole${i}`} className="stair-opening">
+                        <polygon points={ptsAttr(h)} />
+                        <line x1={h[0][0]} y1={h[0][1]} x2={h[2][0]} y2={h[2][1]} />
+                        <line x1={h[1][0]} y1={h[1][1]} x2={h[3][0]} y2={h[3][1]} />
+                    </g>
+                ))}
+                {objectsDrawn
+                    .filter(({ o }) => isStairId(o.assetId))
+                    .map(({ o }) => (
+                        <StairSymbol key={`st${o.id}`} o={o} />
+                    ))}
                 {objectsDrawn.map(({ o, asset }) => (
                     <ObjectSymbol
                         key={o.id}
@@ -630,6 +646,7 @@ export function PlanEditor() {
                         depth={asset.size[2] * o.scale[2]}
                         label={o.name ?? asset.name}
                         mount={asset.mount}
+                        stair={isStairId(o.assetId)}
                         selected={sel?.kind === 'object' && sel.id === o.id}
                         mpp={mpp}
                     />
@@ -856,6 +873,32 @@ function OpeningSymbol(props: {
     );
 }
 
+/** Treads of a stair in the plan and the walking line with an arrow pointing upstairs. */
+function StairSymbol({ o }: { o: SceneObject }) {
+    const treads = useMemo(() => stairTreadOutlines(o.assetId), [o.assetId]);
+    const { right, front } = objectAxes(o.rotation);
+    const P = ([x, z]: [number, number]): Vec2 => [o.x + right[0] * x + front[0] * z, o.y + right[1] * x + front[1] * z];
+    const centres = treads.map(t => P([t.reduce((a, q) => a + q[0], 0) / t.length, t.reduce((a, q) => a + q[1], 0) / t.length]));
+    const last = centres[centres.length - 1];
+    const prev = centres[centres.length - 2] ?? centres[0];
+    const dir = last && prev ? Math.atan2(last[1] - prev[1], last[0] - prev[0]) : 0;
+    return (
+        <g className="stair-symbol">
+            {treads.map((t, i) => (
+                <polygon key={i} points={ptsAttr(t.map(P))} />
+            ))}
+            {centres.length > 1 && <polyline points={centres.map(c => c.join(',')).join(' ')} className="walk-line" />}
+            {last && (
+                <path
+                    className="walk-arrow"
+                    d="M 0 0 L -0.18 -0.08 L -0.18 0.08 Z"
+                    transform={`translate(${last[0]} ${last[1]}) rotate(${(dir * 180) / Math.PI})`}
+                />
+            )}
+        </g>
+    );
+}
+
 function ObjectSymbol(props: {
     poly: Vec2[];
     center: Vec2;
@@ -863,13 +906,15 @@ function ObjectSymbol(props: {
     depth: number;
     label: string;
     mount: string;
+    /** a stair: only the outline, its treads are drawn separately */
+    stair?: boolean;
     selected?: boolean;
     preview?: boolean;
     mpp: number;
 }) {
     const { front } = objectAxes(props.rotation);
     const tip = add(props.center, scale(front, props.depth / 2));
-    const cls = `object mount-${props.mount} ${props.selected ? 'selected' : ''} ${props.preview ? 'preview' : ''}`;
+    const cls = `object mount-${props.mount} ${props.stair ? 'stair' : ''} ${props.selected ? 'selected' : ''} ${props.preview ? 'preview' : ''}`;
     // label only when it fits into the footprint (in screen pixels), or when selected
     const edge = (i: number) => Math.hypot(props.poly[i + 1][0] - props.poly[i][0], props.poly[i + 1][1] - props.poly[i][1]) / props.mpp;
     const fits = Math.max(edge(0), edge(1)) > props.label.length * 6 + 6 && Math.min(edge(0), edge(1)) > 14;

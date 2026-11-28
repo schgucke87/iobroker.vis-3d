@@ -124,8 +124,13 @@ Ohne ioBroker (oder mit `?demo`) läuft die App mit simulierten Demo-Datenpunkte
 - **Öffnungsrichtung**: Anschlag (Scharnier links/rechts) und Aufschlagseite umschaltbar – der Bogen im Grundriss
   zeigt sie, in 3D gehen Türen und Fenster bei „offen“ entsprechend auf
 - Bibliothek mit rund 75 Objekten: Zimmerpflanzen, Garten (Bäume, Hecken, Sträucher, Beete, Gartenmöbel, Grill,
-  Feuerstelle), Möbel, Bad & Haushaltsgeräte, Leuchten innen und außen (Pendel-, Kronleuchter, Einbaustrahler,
+  Feuerstelle), Möbel, Bad & Haushaltsgeräte, Leuchten innen und außen (Pendel-, Kronleuchter, Deckenspots 1-/2-/3-flammig, Einbauspot, Einbaustrahler,
   LED-Leiste, Poller, Gartenstrahler, Lichterkette …) – alle Farben pro Material änderbar
+- **Treppen** zwischen Stockwerken: gerade, viertelgewendelt (L, links/rechts), halbgewendelt (U) oder Wendeltreppe;
+  Höhe, Steigungen, Laufbreite, Auftritt und Geländer einstellbar (mit Steigungs-/Schrittmaß-Anzeige); im Stockwerk
+  darüber entsteht automatisch die Deckenöffnung (im Grundriss als „Luftraum“ gestrichelt)
+- **Dachbodentreppe** (Bodentreppe mit Luke) vom obersten Stockwerk in den Dachboden
+- Objekte **proportional** vergrößern/verkleinern (Seitenverhältnis gesperrt, Größe in %, ±25/50 %-Knöpfe)
 - **Dark Mode**: Automatisch (wie das System), Hell oder Dunkel – Umschalter oben rechts
 
 **Gestaltung**
