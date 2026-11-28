@@ -431,3 +431,7 @@ button.link { border: none; background: none; color: var(--accent); padding: 0 4
     font-size: 12px;
 }
 .panel .sub-head { margin: 10px 0 0; font-size: 12px; font-weight: 600; }
+
+/* with a floor plan template, room fills stay see-through so the template remains visible while drawing */
+.plan-svg.has-template .room { fill-opacity: 0.3; }
+.plan-svg.has-template .room.selected { fill-opacity: 0.45; }

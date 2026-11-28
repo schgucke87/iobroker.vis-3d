@@ -1,8 +1,12 @@
 {
   "common": {
     "name": "vis-3d",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "news": {
+      "0.1.1": {
+        "en": "Floor plan template stays visible when rooms are closed",
+        "de": "Grundriss-Vorlage bleibt sichtbar, wenn Räume geschlossen sind"
+      },
       "0.1.0": {
         "en": "3D view with roofs, dormers, basement, garden, live weather (daswetter) and snow cover, CAD furniture editor, suggestions incl. Hue, colours and daylight",
         "de": "3D-Ansicht mit Dächern, Gauben, Keller, Garten, Live-Wetter (daswetter) und Schneedecke, CAD-Möbeleditor, Vorschläge inkl. Hue, Farben und Tageslicht"

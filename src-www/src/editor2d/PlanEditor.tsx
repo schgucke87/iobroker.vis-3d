@@ -516,7 +516,7 @@ export function PlanEditor() {
         <div className="plan-editor">
             <svg
                 ref={svgRef}
-                className={`plan-svg tool-${tool}`}
+                className={`plan-svg tool-${tool} ${bg?.visible ? 'has-template' : ''}`}
                 viewBox={vb}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
